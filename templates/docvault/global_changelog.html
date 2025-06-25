@@ -1,0 +1,69 @@
+{% extends 'docvault/base.html' %}
+{% load static %}
+
+{% block title %}Global Document Changelog{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <h1>Recent Document Changes</h1>
+      <p class="lead">Important updates across all documents</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+      <a href="{% url 'docvault:document_list' %}" class="btn btn-outline-primary">
+        <i class="bi bi-folder"></i> All Documents
+      </a>
+    </div>
+  </div>
+
+  {% if changelogs %}
+    <div class="list-group mb-4">
+      {% for changelog in changelogs %}
+        <div class="list-group-item">
+          <div class="d-flex w-100 justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">
+              <a href="{% url 'docvault:document_detail' changelog.document.category.slug changelog.document.slug %}">
+                {{ changelog.document.title }}
+              </a>
+              {% if changelog.importance == 'MAJOR' %}
+                <span class="badge bg-danger ms-2">Major Change</span>
+              {% elif changelog.importance == 'NORMAL' %}
+                <span class="badge bg-warning ms-2">Notable Change</span>
+              {% elif changelog.importance == 'MINOR' %}
+                <span class="badge bg-secondary ms-2">Minor Change</span>
+              {% endif %}
+            </h5>
+            <small class="text-muted">{{ changelog.created_at|date:"F j, Y" }}</small>
+          </div>
+
+          <p class="mb-1">{{ changelog.description }}</p>
+
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <small class="text-muted">
+              {% if changelog.document.category %}
+                <span class="badge bg-info">{{ changelog.document.category.name }}</span>
+              {% endif %}
+              {% if changelog.version %}
+                Version {{ changelog.version.version_number }}
+              {% endif %}
+            </small>
+
+            <small class="text-muted">
+              {% if changelog.created_by %}
+                Updated by {{ changelog.created_by.get_full_name|default:changelog.created_by.username }}
+              {% endif %}
+            </small>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% include 'includes/pagination.html' %}
+  {% else %}
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle"></i> No significant document changes to display.
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

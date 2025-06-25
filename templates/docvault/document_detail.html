@@ -1,0 +1,233 @@
+{% extends "docvault/base.html" %}
+{% load static %}
+
+{% block title %}{{ document.title }} | DocVault{% endblock %}
+
+{% block extra_css %}
+<style>
+  .highlight-heading {
+    animation: highlight-fade 2s;
+  }
+  
+  @keyframes highlight-fade {
+    0% { background-color: rgba(255, 255, 0, 0.5); }
+    100% { background-color: transparent; }
+  }
+  
+  #toc ul {
+    padding-left: 0;
+  }
+  
+  #toc li {
+    margin-bottom: 0.5rem;
+  }
+  
+  #toc a {
+    text-decoration: none;
+    color: #0d6efd;
+  }
+  
+  #toc a:hover {
+    text-decoration: underline;
+  }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+    <h1>{{ document.title }}</h1>
+    <div>
+        {% if document.category %}
+        <a href="{% url 'docvault:document_list_by_category' document.category.slug %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-folder"></i> {{ document.category.name }}
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="document-metadata mb-4">
+    <div class="card">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Created:</strong> {{ document.created_at|date:"F j, Y, g:i a" }}</p>
+                    {% if document.created_by %}
+                    <p><strong>Author:</strong> {{ document.created_by.get_full_name|default:document.created_by.username }}</p>
+                    {% endif %}
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p><strong>Last Updated:</strong> {{ document.updated_at|date:"F j, Y, g:i a" }}</p>
+                    <div class="btn-group">
+                        <a href="{% url 'docvault:version_history' document.category.slug document.slug %}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-clock-history"></i> Version History
+                        </a>
+                        <a href="{% url 'docvault:document_changelog' document.category.slug document.slug %}" class="btn btn-outline-info btn-sm">
+                            <i class="bi bi-list-check"></i> Changelog
+                        </a>
+                        <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-code-slash"></i> Compare Versions
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if table_of_contents %}
+<div class="table-of-contents mb-4">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Table of Contents</h5>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#tocCollapse" aria-expanded="true" aria-controls="tocCollapse">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse show" id="tocCollapse">
+            <div class="card-body">
+                <nav id="toc">
+                    <ul class="list-unstyled">
+                        {% for level, text, heading_id in table_of_contents %}
+                            <li style="margin-left: {{ level|add:"-1" }}rem;">
+                                <a href="#{{ heading_id }}">{{ text }}</a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="document-content mb-4">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Document Content</h5>
+        </div>
+        <div class="card-body">
+            <div id="document-body">
+                {{ document.content|safe }}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if recent_versions %}
+<div class="recent-versions mb-4">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Recent Versions</h5>
+            <div>
+                <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}" class="btn btn-sm btn-outline-secondary me-2">
+                    <i class="bi bi-code-slash"></i> Compare
+                </a>
+                <a href="{% url 'docvault:version_history' document.category.slug document.slug %}" class="btn btn-sm btn-link">View All</a>
+            </div>
+        </div>
+        <div class="list-group list-group-flush">
+            {% for version in recent_versions %}
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Version {{ version.version_number }}</h6>
+                        <small class="text-muted">{{ version.created_at|date:"F j, Y, g:i a" }}</small>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <a href="{% url 'docvault:document_version' document.category.slug document.slug version.version_number %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-eye"></i> View
+                        </a>
+                        <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}?v1={{ version.version_number }}&v2={{ recent_versions.0.version_number }}" class="btn btn-outline-primary">
+                            <i class="bi bi-code-slash"></i> Compare
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if recent_changes %}
+<div class="recent-changes">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Recent Changes</h5>
+            {% if document.category %}
+            <a href="{% url 'docvault:document_changelog' document.category.slug document.slug %}" class="btn btn-sm btn-link">View All</a>
+            {% else %}
+            <a href="{% url 'docvault:document_changelog_no_category' document.slug %}" class="btn btn-sm btn-link">View All</a>
+            {% endif %}
+        </div>
+        <div class="list-group list-group-flush">
+            {% for change in recent_changes %}
+            <div class="list-group-item">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ change.created_at|date:"F j, Y" }}</h6>
+                    {% if change.version %}
+                    <small>Version {{ change.version.version_number }}</small>
+                    {% endif %}
+                </div>
+                <p class="mb-1">{{ change.description }}</p>
+                <small class="text-muted">
+                    {% if change.created_by %}
+                    By {{ change.created_by.get_full_name|default:change.created_by.username }}
+                    {% endif %}
+                </small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Process heading tags to add IDs for anchor links
+    const documentBody = document.getElementById('document-body');
+    if (documentBody) {
+      const headings = documentBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      
+      headings.forEach(function(heading) {
+        // Generate ID from heading text
+        const headingText = heading.textContent.trim();
+        let headingId = headingText.toLowerCase()
+          .replace(/[^\w\s-]/g, '')  // Remove special chars
+          .replace(/\s+/g, '-');     // Replace spaces with hyphens
+        
+        // Set the ID attribute
+        heading.id = headingId;
+      });
+    }
+    
+    // Handle smooth scrolling for TOC links
+    const tocLinks = document.querySelectorAll('#toc a');
+    tocLinks.forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        const targetId = this.getAttribute('href').substring(1);
+        const targetElement = document.getElementById(targetId);
+        
+        if (targetElement) {
+          targetElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+          
+          // Add a highlight effect
+          targetElement.classList.add('highlight-heading');
+          setTimeout(function() {
+            targetElement.classList.remove('highlight-heading');
+          }, 2000);
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "docvault/base.html" %}
+{% load static %}
+
+{% block title %}Version History: {{ document.title }} | DocVault{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+  <h1>Version History</h1>
+  <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}" class="btn btn-outline-primary">
+    <i class="bi bi-arrow-left"></i> Back to Document
+  </a>
+</div>
+<p class="text-muted">{{ document.title }}</p>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">Document Information</h5>
+    <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-code-slash"></i> Compare Versions
+    </a>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6">
+        <p><strong>Title:</strong> {{ document.title }}</p>
+        <p><strong>Category:</strong> {{ document.category.name }}</p>
+      </div>
+      <div class="col-md-6">
+        <p><strong>Created:</strong> {{ document.created_at|date:"F j, Y, g:i a" }}</p>
+        <p><strong>Last Updated:</strong> {{ document.updated_at|date:"F j, Y, g:i a" }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if versions %}
+  <div class="table-responsive">
+    <table class="table table-striped table-hover">
+      <thead class="table-dark">
+        <tr>
+          <th style="width: 15%">Version</th>
+          <th style="width: 30%">Date</th>
+          <th style="width: 25%">Author</th>
+          <th style="width: 30%">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for version in versions %}
+          <tr>
+            <td>v{{ version.version_number }}</td>
+            <td>{{ version.created_at|date:"F j, Y, g:i a" }}</td>
+            <td>
+              {% if version.created_by %}
+                {{ version.created_by.get_full_name|default:version.created_by.username }}
+              {% else %}
+                <em>Unknown</em>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                <a href="{% url 'docvault:document_version' document.category.slug document.slug version.version_number %}" class="btn btn-outline-primary">
+                  <i class="bi bi-eye"></i> View
+                </a>
+                <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}?v1={{ version.version_number }}&v2={{ versions.0.version_number }}" class="btn btn-outline-secondary">
+                  <i class="bi bi-code-slash"></i> Compare
+                </a>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+    <div class="pagination mt-4 d-flex justify-content-center">
+      <ul class="pagination">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page=1">&laquo; First</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+          </li>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+          {% if page_obj.number == num %}
+            <li class="page-item active">
+              <span class="page-link">{{ num }}</span>
+            </li>
+          {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="alert alert-info">
+    No version history is available for this document.
+  </div>
+{% endif %}
+{% endblock %}

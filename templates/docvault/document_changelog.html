@@ -1,0 +1,120 @@
+{% extends "docvault/base.html" %}
+{% load static %}
+
+{% block title %}Changelog: {{ document.title }} | DocVault{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+  <h1>Document Changelog</h1>
+    <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}" class="btn btn-outline-primary">
+      <i class="bi bi-arrow-left"></i> Back to Document
+    </a>
+</div>
+<p class="text-muted">{{ document.title }}</p>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">Document Information</h5>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6">
+        <p><strong>Title:</strong> {{ document.title }}</p>
+        {% if document.category %}
+          <p><strong>Category:</strong> {{ document.category.name }}</p>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        <p><strong>Created:</strong> {{ document.created_at|date:"F j, Y, g:i a" }}</p>
+        <p><strong>Last Updated:</strong> {{ document.updated_at|date:"F j, Y, g:i a" }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if changelogs %}
+  <div class="timeline">
+    {% for changelog in changelogs %}
+      <div class="card mb-3">
+        <div class="card-header {% if forloop.first %}bg-primary text-white{% else %}bg-light{% endif %}">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{{ changelog.created_at|date:"F j, Y, g:i a" }}</h5>
+            {% if changelog.version %}
+              <span class="badge {% if forloop.first %}bg-light text-dark{% else %}bg-primary{% endif %}">
+                Version {{ changelog.version.version_number }}
+              </span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="card-body">
+          <p>{{ changelog.description }}</p>
+
+          <div class="d-flex justify-content-between align-items-center mt-3">
+            <small class="text-muted">
+              {% if changelog.created_by %}
+                By {{ changelog.created_by.get_full_name|default:changelog.created_by.username }}
+              {% else %}
+                <em>Unknown author</em>
+              {% endif %}
+            </small>
+
+            {% if changelog.version %}
+              {% if document.category %}
+                <a href="{% url 'docvault:document_version' document.category.slug document.slug changelog.version.version_number %}" class="btn btn-sm btn-outline-primary">
+                  View Version
+                </a>
+              {% else %}
+                <a href="{% url 'docvault:document_version_no_category' document.slug changelog.version.version_number %}" class="btn btn-sm btn-outline-primary">
+                  View Version
+                </a>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+    <div class="pagination mt-4 d-flex justify-content-center">
+      <ul class="pagination">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page=1">&laquo; First</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+          </li>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+          {% if page_obj.number == num %}
+            <li class="page-item active">
+              <span class="page-link">{{ num }}</span>
+            </li>
+          {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="alert alert-info">
+    No changelog entries found for this document.
+  </div>
+{% endif %}
+{% endblock %}

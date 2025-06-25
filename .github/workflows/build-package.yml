@@ -1,0 +1,86 @@
+name: Build Package (Django 5.1+)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install build wheel twine
+        python -m pip install "Django>=5.1"
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Check package with twine
+      run: |
+        python -m twine check dist/*
+
+    - name: Test installation and Django compatibility
+      run: |
+        # Ensure Django 5.1+ is installed first
+        python -m pip install "Django>=5.1"
+        # Then install our package
+        python -m pip install dist/*.whl
+        # Verify imports and versions
+        python -c "import docvault; import django; print(f'Successfully imported docvault version {docvault.__version__} with Django {django.get_version()}')"
+        python -c "import django; assert tuple(map(int, django.get_version().split('.')[:2])) >= (5, 1), 'Django version must be at least 5.1'"
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ matrix.python-version }}
+        path: dist/
+        retention-days: 7
+
+  test_django_compatibility:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11]
+        django-version: ["5.1", "5.2"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist-3.11
+        path: dist/
+
+    - name: Install specific Django version
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "Django==${{ matrix.django-version }}.*"
+        python -c "import django; print(f'Installed Django {django.get_version()}')"
+
+    - name: Install package and test compatibility
+      run: |
+        python -m pip install dist/*.whl
+        python -c "import docvault; import django; print(f'Successfully imported docvault with Django {django.get_version()}')"

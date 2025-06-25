@@ -1,0 +1,445 @@
+{% extends 'docvault/base.html' %}
+{% load static %}
+
+{% block title %}Compare Document Versions - {{ document.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <h1>Compare Document Versions</h1>
+      <h4 class="text-muted">{{ document.title }}</h4>
+    </div>
+    <div class="col-md-4 text-md-end">
+      <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Back to Document
+      </a>
+    </div>
+  </div>
+
+  {% if compare_mode == 'select' %}
+    <!-- Version Selection Form -->
+    <div class="card mb-4">
+      <div class="card-header bg-light">
+        <h5 class="card-title mb-0">Select Versions to Compare</h5>
+      </div>
+      <div class="card-body">
+        <form method="get" action="{% url 'docvault:document_compare' document.category.slug document.slug %}">
+          <div class="row">
+            <div class="col-md-5">
+              <div class="form-group">
+                <label for="v1"><strong>From Version:</strong></label>
+                <select name="v1" id="v1" class="form-select">
+                  {% for version in versions %}
+                    <option value="{{ version.version_number }}">
+                      Version {{ version.version_number }} ({{ version.created_at|date:"M d, Y" }})
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-2 d-flex align-items-center justify-content-center my-2">
+              <i class="bi bi-arrow-right fs-3"></i>
+            </div>
+            <div class="col-md-5">
+              <div class="form-group">
+                <label for="v2"><strong>To Version:</strong></label>
+                <select name="v2" id="v2" class="form-select">
+                  {% for version in versions %}
+                    <option value="{{ version.version_number }}" {% if forloop.first %}selected{% endif %}>
+                      Version {{ version.version_number }} ({{ version.created_at|date:"M d, Y" }})
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 text-center">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-code-slash"></i> Compare Versions
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Version History Table -->
+    <div class="card">
+      <div class="card-header bg-light">
+        <h5 class="card-title mb-0">Available Versions</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Version</th>
+                <th>Date</th>
+                <th>Author</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for version in versions %}
+                <tr>
+                  <td>Version {{ version.version_number }}</td>
+                  <td>{{ version.created_at|date:"F j, Y, g:i a" }}</td>
+                  <td>
+                    {% if version.created_by %}
+                      {{ version.created_by.get_full_name|default:version.created_by.username }}
+                    {% else %}
+                      Anonymous
+                    {% endif %}
+                  </td>
+                  <td>
+                    <a href="{% url 'docvault:document_version' document.category.slug document.slug version.version_number %}" 
+                       class="btn btn-sm btn-outline-secondary">
+                      <i class="bi bi-eye"></i> View
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  {% else %}
+    <!-- Diff View -->
+    <div class="card mb-4">
+      <div class="card-header bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">
+            Comparing Version {{ version1.version_number }} to Version {{ version2.version_number }}
+          </h5>
+          <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}" 
+             class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-repeat"></i> Change Versions
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header bg-light-subtle">
+                <h6 class="mb-0">
+                  Version {{ version1.version_number }}
+                  <small class="text-muted ms-2">{{ version1.created_at|date:"M d, Y" }}</small>
+                </h6>
+              </div>
+              <div class="card-body version-details">
+                <div class="version-metadata mb-3">
+                  <small class="text-muted">
+                    Created by: 
+                    {% if version1.created_by %}
+                      {{ version1.created_by.get_full_name|default:version1.created_by.username }}
+                    {% else %}
+                      Anonymous
+                    {% endif %}
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header bg-light-subtle">
+                <h6 class="mb-0">
+                  Version {{ version2.version_number }}
+                  <small class="text-muted ms-2">{{ version2.created_at|date:"M d, Y" }}</small>
+                </h6>
+              </div>
+              <div class="card-body version-details">
+                <div class="version-metadata mb-3">
+                  <small class="text-muted">
+                    Created by: 
+                    {% if version2.created_by %}
+                      {{ version2.created_by.get_full_name|default:version2.created_by.username }}
+                    {% else %}
+                      Anonymous
+                    {% endif %}
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Diff Content -->
+        <div class="card">
+          <div class="card-header bg-light">
+            <ul class="nav nav-tabs card-header-tabs" id="diffTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="side-by-side-tab" data-bs-toggle="tab" data-bs-target="#side-by-side" 
+                        type="button" role="tab" aria-controls="side-by-side" aria-selected="true">
+                  Side by Side
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="unified-tab" data-bs-toggle="tab" data-bs-target="#unified" 
+                        type="button" role="tab" aria-controls="unified" aria-selected="false">
+                  Unified View
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div class="card-body">
+            <div class="tab-content" id="diffTabsContent">
+                <div class="tab-pane fade show active" id="side-by-side" role="tabpanel" aria-labelledby="side-by-side-tab">
+                  <div class="row">
+                    <div class="col-md-6 diff-col">
+                      <div class="card-header bg-light">
+                        Version {{ version1.version_number }} ({{ version1.created_at|date:"M d, Y" }})
+                      </div>
+                      <div class="diff-container border p-3" id="leftContent">
+                        {{ version1.content|safe }}
+                      </div>
+                    </div>
+                    <div class="col-md-6 diff-col">
+                      <div class="card-header bg-light">
+                        Version {{ version2.version_number }} ({{ version2.created_at|date:"M d, Y" }})
+                      </div>
+                      <div class="diff-container border p-3" id="rightContent">
+                        {{ version2.content|safe }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="mt-3 text-center">
+                    <small class="text-muted">
+                      <span class="badge bg-warning">Highlighted text</span> indicates content that has changed between versions
+                    </small>
+                  </div>
+                </div>
+              <div class="tab-pane fade" id="unified" role="tabpanel" aria-labelledby="unified-tab">
+                <div id="unifiedDiff" class="diff-container border p-3">
+                  <!-- Unified diff will be rendered by JavaScript -->
+                  <div class="text-center py-4" id="diffLoader">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Generating diff view...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- No external libraries needed for diff visualization -->
+    
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Function to extract text from HTML
+        function extractTextFromHtml(html) {
+          const div = document.createElement('div');
+          div.innerHTML = html;
+          return div.textContent || div.innerText || '';
+        }
+
+        // Get content from both versions
+        const leftContent = document.getElementById('leftContent').innerHTML;
+        const rightContent = document.getElementById('rightContent').innerHTML;
+        
+        // Extract text for diff
+        const leftText = extractTextFromHtml(leftContent);
+        const rightText = extractTextFromHtml(rightContent);
+        
+        // Create unified diff
+        const unifiedDiffTab = document.getElementById('unified-tab');
+        unifiedDiffTab.addEventListener('click', function() {
+          const diffLoader = document.getElementById('diffLoader');
+          
+          // Generate diff only when tab is clicked
+          setTimeout(function() {
+            // Simple text comparison
+            const lines1 = leftText.split('\n');
+            const lines2 = rightText.split('\n');
+            
+            // Build diff HTML
+            let diffHtml = '<div class="diff-unified">';
+            
+            // Simple line-by-line diff
+            const maxLines = Math.max(lines1.length, lines2.length);
+            for (let i = 0; i < maxLines; i++) {
+              const line1 = i < lines1.length ? lines1[i] : null;
+              const line2 = i < lines2.length ? lines2[i] : null;
+              
+              if (line1 === line2) {
+                // Unchanged line
+                if (line1) {
+                  diffHtml += `<div class="diff-line diff-unchanged"><pre>${escapeHtml(line1)}</pre></div>`;
+                }
+              } else {
+                // Changed line
+                if (line1 !== null) {
+                  diffHtml += `<div class="diff-line diff-removed"><pre>- ${escapeHtml(line1)}</pre></div>`;
+                }
+                if (line2 !== null) {
+                  diffHtml += `<div class="diff-line diff-added"><pre>+ ${escapeHtml(line2)}</pre></div>`;
+                }
+              }
+            }
+            
+            diffHtml += '</div>';
+            
+            // Display the diff
+            const unifiedDiff = document.getElementById('unifiedDiff');
+            unifiedDiff.innerHTML = diffHtml;
+            diffLoader.style.display = 'none';
+          }, 100);
+        });
+        
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+          if (!text) return '';
+          return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+
+        // Highlight differences in side-by-side view
+        function highlightDifferences() {
+          const leftContainer = document.getElementById('leftContent');
+          const rightContainer = document.getElementById('rightContent');
+          
+          // Process HTML content into text blocks (paragraphs, headers, list items)
+          function getTextBlocks(container) {
+            const blocks = [];
+            const elements = container.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, div, span');
+            
+            elements.forEach(el => {
+              if (el.textContent.trim()) {
+                blocks.push({
+                  element: el,
+                  text: el.textContent.trim()
+                });
+              }
+            });
+            
+            return blocks;
+          }
+          
+          const leftBlocks = getTextBlocks(leftContainer);
+          const rightBlocks = getTextBlocks(rightContainer);
+          
+          // Compare blocks
+          leftBlocks.forEach((leftBlock, index) => {
+            // Add hover highlight to all elements
+            leftBlock.element.classList.add('diff-highlight-hover');
+            
+            // Try to find matching block in right container
+            const rightBlock = index < rightBlocks.length ? rightBlocks[index] : null;
+            
+            if (rightBlock) {
+              rightBlock.element.classList.add('diff-highlight-hover');
+              
+              // Simple text comparison
+              if (leftBlock.text !== rightBlock.text) {
+                leftBlock.element.classList.add('diff-changed');
+                rightBlock.element.classList.add('diff-changed');
+                
+                // Add title attribute to show difference
+                leftBlock.element.title = "Changed in newer version";
+                rightBlock.element.title = "Changed from older version";
+              }
+            } else {
+              // Block removed in right version
+              leftBlock.element.classList.add('diff-removed');
+              leftBlock.element.title = "Removed in newer version";
+            }
+          });
+          
+          // Handle added blocks in right version
+          rightBlocks.slice(leftBlocks.length).forEach(block => {
+            block.element.classList.add('diff-highlight-hover', 'diff-added');
+            block.element.title = "Added in newer version";
+          });
+        }
+        
+        highlightDifferences();
+      });
+    </script>
+
+    <style>
+      /* Custom styles for diff view */
+      .diff-container {
+        max-height: 800px;
+        overflow-y: auto;
+      }
+      
+      .diff-highlight-hover:hover {
+        background-color: #f8f9fa;
+      }
+      
+      /* Side-by-side diff highlighting */
+      .diff-changed {
+        background-color: #fff8c5;
+        border-left: 3px solid #f1c40f;
+        padding-left: 5px;
+      }
+      
+      .diff-added {
+        background-color: #e6ffed;
+        border-left: 3px solid #2ecc71;
+        padding-left: 5px;
+      }
+      
+      .diff-removed {
+        background-color: #ffeef0;
+        border-left: 3px solid #e74c3c;
+        padding-left: 5px;
+        text-decoration: line-through;
+      }
+      
+      /* Unified diff view colors */
+      .diff-unchanged {
+        background-color: #f8f9fa;
+      }
+      
+      .diff-added {
+        background-color: #e6ffed;
+      }
+      
+      .diff-removed {
+        background-color: #ffeef0;
+      }
+      
+      /* Unified diff view */
+      .diff-unified {
+        font-family: 'Courier New', Courier, monospace;
+        white-space: pre-wrap;
+        line-height: 1.5;
+        overflow-x: auto;
+      }
+      
+      .diff-line {
+        padding: 2px 5px;
+        margin: 2px 0;
+      }
+      
+      .diff-line pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      
+      /* Make columns in side-by-side view equal height */
+      .diff-col {
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .diff-col .diff-container {
+        flex: 1;
+      }
+    </style>
+  {% endif %}
+</div>
+{% endblock %}

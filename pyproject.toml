@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-docvault"
+version = "0.1.0"
+description = "A Django app for document management with versioning and changelogs"
+readme = "README.md"
+authors = [
+    {name = "TUSKION", email = "opensource@tuskion.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 5.1",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "Django>=5.1",
+    "django-tinymce>=3.4.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/TUSKION/django-docvault"
+"Bug Tracker" = "https://github.com/TUSKION/django-docvault/issues"
+"Documentation" = "https://github.com/TUSKION/django-docvault#readme"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["docvault*"]

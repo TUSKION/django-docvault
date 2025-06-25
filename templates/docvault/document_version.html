@@ -1,0 +1,104 @@
+{% extends "docvault/base.html" %}
+{% load static %}
+
+{% block title %}{{ document.title }} - Version {{ version.version_number }} | DocVault{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+  <h1>{{ document.title }}</h1>
+  <div>
+    {% if document.category %}
+      <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Current Version
+      </a>
+    {% else %}
+      <a href="{% url 'docvault:document_detail_no_category' document.slug %}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Current Version
+      </a>
+    {% endif %}
+  </div>
+</div>
+<p class="text-muted">Version {{ version.version_number }} - {{ version.created_at|date:"F j, Y, g:i a" }}</p>
+{% endblock %}
+
+{% block content %}
+<!-- Version navigation -->
+<div class="d-flex justify-content-between mb-4">
+  <div>
+    {% if previous_version %}
+      {% if document.category %}
+        <a href="{% url 'docvault:document_version' document.category.slug document.slug previous_version.version_number %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left"></i> Version {{ previous_version.version_number }}
+        </a>
+      {% else %}
+        <a href="{% url 'docvault:document_version_no_category' document.slug previous_version.version_number %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left"></i> Version {{ previous_version.version_number }}
+        </a>
+      {% endif %}
+    {% endif %}
+  </div>
+  
+  <div>
+    {% if document.category %}
+      <a href="{% url 'docvault:version_history' document.category.slug document.slug %}" class="btn btn-sm btn-outline-info">
+        <i class="bi bi-clock-history"></i> Version History
+      </a>
+    {% else %}
+      <a href="{% url 'docvault:version_history_no_category' document.slug %}" class="btn btn-sm btn-outline-info">
+        <i class="bi bi-clock-history"></i> Version History
+      </a>
+    {% endif %}
+  </div>
+  
+  <div>
+    {% if next_version %}
+      {% if document.category %}
+        <a href="{% url 'docvault:document_version' document.category.slug document.slug next_version.version_number %}" class="btn btn-sm btn-outline-secondary">
+          Version {{ next_version.version_number }} <i class="bi bi-arrow-right"></i>
+        </a>
+      {% else %}
+        <a href="{% url 'docvault:document_version_no_category' document.slug next_version.version_number %}" class="btn btn-sm btn-outline-secondary">
+          Version {{ next_version.version_number }} <i class="bi bi-arrow-right"></i>
+        </a>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Version metadata -->
+<div class="card mb-4">
+  <div class="card-header bg-light">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Version Information</h5>
+      <span class="badge bg-primary">v{{ version.version_number }}</span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6">
+        <p><strong>Created:</strong> {{ version.created_at|date:"F j, Y, g:i a" }}</p>
+        {% if version.created_by %}
+          <p><strong>Author:</strong> {{ version.created_by.get_full_name|default:version.created_by.username }}</p>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        {% if changelog %}
+          <div class="alert alert-info">
+            <strong>Changes:</strong> {{ changelog.description }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Document content -->
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0">Document Content</h5>
+  </div>
+  <div class="card-body">
+    {{ version.content|safe }}
+  </div>
+</div>
+{% endblock %}
