@@ -13,13 +13,13 @@ pip install django-docvault
 ### 2. From Git repository
 
 ```bash
-pip install git+https://github.com/yourusername/django-docvault.git
+pip install git+https://github.com/TUSKION/django-docvault.git
 ```
 
 ### 3. Manual installation
 
 ```bash
-git clone https://github.com/yourusername/django-docvault.git
+git clone https://github.com/TUSKION/django-docvault.git
 cd django-docvault
 pip install -e .
 ```
@@ -117,7 +117,7 @@ After installation, you can:
 
 ## Requirements
 
-- Django 4.2 or higher
+- Django 5.1 or higher
 - Python 3.11 or higher
 - django-tinymce 3.4.0 or higher
 
@@ -130,4 +130,4 @@ If you encounter issues:
 3. Verify URL configuration includes both docvault and tinymce URLs
 4. Make sure TinyMCE static files are properly collected
 
-For more help, refer to the [GitHub repository](https://github.com/yourusername/django-docvault).
+For more help, refer to the [GitHub repository](https://github.com/TUSKION/django-docvault).

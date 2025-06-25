@@ -66,7 +66,7 @@ The following templates can be overridden:
 
 ## Table of Contents
 
-The table of contents is automatically generated from headings in the document content. 
+The table of contents is automatically generated from headings in the document content.
 The system scans for HTML heading tags (h1-h6) and creates a clickable navigation structure.
 
 You can customize the TOC display by overriding the `document_detail.html` template.
@@ -85,7 +85,7 @@ To customize the search results display, override the `search_results.html` temp
 
 ## Requirements
 
-- Django 3.2+
+- Django 5.1+
 - TinyMCE for rich text editing
 
 ## License
