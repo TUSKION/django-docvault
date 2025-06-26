@@ -133,6 +133,8 @@ class DocumentVersionView(DetailView):
         except Changelog.DoesNotExist:
             context['changelog'] = None
 
+        context['table_of_contents'] = self.document.generate_toc()
+
         return context
 
 
@@ -186,13 +188,13 @@ class GlobalChangelogView(ListView):
     template_name = 'docvault/global_changelog.html'
     context_object_name = 'changelogs'
     paginate_by = 20
-    
+
     def get_queryset(self):
         # Get MAJOR changes and any explicitly marked for global inclusion
         return Changelog.objects.filter(
             Q(importance='MAJOR') | Q(show_in_global=True)
         ).select_related('document', 'document__category', 'version', 'created_by').order_by('-created_at')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['categories'] = DocumentCategory.objects.all()
@@ -202,7 +204,7 @@ class GlobalChangelogView(ListView):
 class DocumentCompareView(View):
     """Compare two versions of a document and show the differences"""
     template_name = 'docvault/document_compare.html'
-    
+
     def get(self, request, category_slug, document_slug):
         # Get the document
         document = get_object_or_404(
@@ -210,11 +212,11 @@ class DocumentCompareView(View):
             category__slug=category_slug,
             slug=document_slug
         )
-        
+
         # Get version numbers from query parameters
         version1_num = request.GET.get('v1')
         version2_num = request.GET.get('v2')
-        
+
         # If versions aren't specified, show version selection form
         if not version1_num or not version2_num:
             versions = document.versions.all().order_by('-version_number')
@@ -223,21 +225,21 @@ class DocumentCompareView(View):
                 'versions': versions,
                 'compare_mode': 'select'
             })
-        
+
         # Get the specified versions
         try:
             version1 = DocumentVersion.objects.get(
-                document=document, 
+                document=document,
                 version_number=int(version1_num)
             )
             version2 = DocumentVersion.objects.get(
-                document=document, 
+                document=document,
                 version_number=int(version2_num)
             )
         except (DocumentVersion.DoesNotExist, ValueError):
             # Handle invalid version numbers
             return redirect(document.get_absolute_url())
-        
+
         return render(request, self.template_name, {
             'document': document,
             'version1': version1,
