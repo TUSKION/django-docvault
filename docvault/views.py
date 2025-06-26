@@ -115,6 +115,13 @@ class DocumentVersionView(DetailView):
         context = super().get_context_data(**kwargs)
         context['document'] = self.document
 
+        # Generate TOC for this specific version's content using Document's method
+        # avoids creating a method to generate the toc in the version etc
+        original_content = self.document.content
+        self.document.content = self.object.content
+        context['table_of_contents'] = self.document.generate_toc()
+        self.document.content = original_content  # Restore original content
+
         # Get previous and next versions if they exist
         current_version = self.object.version_number
         context['previous_version'] = DocumentVersion.objects.filter(
@@ -132,8 +139,6 @@ class DocumentVersionView(DetailView):
             context['changelog'] = Changelog.objects.get(version=self.object)
         except Changelog.DoesNotExist:
             context['changelog'] = None
-
-        context['table_of_contents'] = self.get_object().generate_toc()
 
         return context
 
