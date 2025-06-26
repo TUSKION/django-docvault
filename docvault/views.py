@@ -133,7 +133,7 @@ class DocumentVersionView(DetailView):
         except Changelog.DoesNotExist:
             context['changelog'] = None
 
-        context['table_of_contents'] = self.document.generate_toc()
+        context['table_of_contents'] = self.get_object().generate_toc()
 
         return context
 
