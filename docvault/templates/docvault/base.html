@@ -6,19 +6,8 @@
     <title>{% block title %}DocVault{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-        .content {
-            flex: 1;
-        }
-        .footer {
-            margin-top: auto;
-        }
-    </style>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'docvault/css/docvault.css' %}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -61,7 +50,9 @@
         {% endif %}
 
         <div class="row">
+            {% if show_sidebar|default:True %}
             <div class="col-md-3 mb-4">
+                {% block sidebar %}
                 <div class="card">
                     <div class="card-header">
                         Categories
@@ -78,9 +69,12 @@
                         {% endblock %}
                     </div>
                 </div>
+                {% endblock %}
             </div>
-
             <div class="col-md-9">
+            {% else %}
+            <div class="col-12">
+            {% endif %}
                 <div class="card">
                     <div class="card-header">
                         {% block header %}DocVault{% endblock %}
@@ -104,6 +98,7 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'docvault/js/docvault.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

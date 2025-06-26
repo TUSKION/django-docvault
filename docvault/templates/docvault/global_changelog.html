@@ -59,7 +59,7 @@
       {% endfor %}
     </div>
 
-    {% include 'includes/pagination.html' %}
+    {% include "docvault/includes/pagination.html" with page_obj=page_obj %}
   {% else %}
     <div class="alert alert-info">
       <i class="bi bi-info-circle"></i> No significant document changes to display.

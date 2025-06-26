@@ -3,34 +3,44 @@
 
 {% block title %}{{ document.title }} | DocVault{% endblock %}
 
-{% block extra_css %}
-<style>
-  .highlight-heading {
-    animation: highlight-fade 2s;
-  }
-  
-  @keyframes highlight-fade {
-    0% { background-color: rgba(255, 255, 0, 0.5); }
-    100% { background-color: transparent; }
-  }
-  
-  #toc ul {
-    padding-left: 0;
-  }
-  
-  #toc li {
-    margin-bottom: 0.5rem;
-  }
-  
-  #toc a {
-    text-decoration: none;
-    color: #0d6efd;
-  }
-  
-  #toc a:hover {
-    text-decoration: underline;
-  }
-</style>
+{% block sidebar %}
+{% if table_of_contents %}
+<div class="card sticky-top">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-bookmark me-1"></i> Document Contents
+        </h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#tocCollapse" aria-expanded="true" aria-controls="tocCollapse">
+            <i class="bi bi-chevron-down"></i>
+        </button>
+    </div>
+    <div class="collapse show" id="tocCollapse">
+        <div class="document-toc-heading">
+            <span class="text-muted small">You're viewing:</span>
+            <div class="fw-bold" title="{{ document.title }}">{{ document.title }}</div>
+        </div>
+        <div class="card-body">
+            <nav id="toc">
+                <ul class="list-unstyled">
+                    {% for level, text, heading_id in table_of_contents %}
+                        <li data-level="{{ level }}">
+                            <a href="#{{ heading_id }}" {% if forloop.first %}class="active"{% endif %} title="{{ text }}">{{ text }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <div class="text-center mt-3 pt-2 border-top">
+                    <a href="#" class="btn btn-sm btn-light mt-2">
+                        <i class="bi bi-arrow-up-circle me-1"></i>Back to top
+                    </a>
+                </div>
+            </nav>
+        </div>
+    </div>
+</div>
+{% else %}
+{# If no ToC, we still want to inherit the default sidebar #}
+{{ block.super }}
+{% endif %}
 {% endblock %}
 
 {% block header %}
@@ -75,32 +85,6 @@
         </div>
     </div>
 </div>
-
-{% if table_of_contents %}
-<div class="table-of-contents mb-4">
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="card-title mb-0">Table of Contents</h5>
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#tocCollapse" aria-expanded="true" aria-controls="tocCollapse">
-                <i class="bi bi-chevron-down"></i>
-            </button>
-        </div>
-        <div class="collapse show" id="tocCollapse">
-            <div class="card-body">
-                <nav id="toc">
-                    <ul class="list-unstyled">
-                        {% for level, text, heading_id in table_of_contents %}
-                            <li style="margin-left: {{ level|add:"-1" }}rem;">
-                                <a href="#{{ heading_id }}">{{ text }}</a>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </nav>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
 
 <div class="document-content mb-4">
     <div class="card">
@@ -186,48 +170,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    // Process heading tags to add IDs for anchor links
-    const documentBody = document.getElementById('document-body');
-    if (documentBody) {
-      const headings = documentBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
-      
-      headings.forEach(function(heading) {
-        // Generate ID from heading text
-        const headingText = heading.textContent.trim();
-        let headingId = headingText.toLowerCase()
-          .replace(/[^\w\s-]/g, '')  // Remove special chars
-          .replace(/\s+/g, '-');     // Replace spaces with hyphens
-        
-        // Set the ID attribute
-        heading.id = headingId;
-      });
-    }
-    
-    // Handle smooth scrolling for TOC links
-    const tocLinks = document.querySelectorAll('#toc a');
-    tocLinks.forEach(function(link) {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-        
-        const targetId = this.getAttribute('href').substring(1);
-        const targetElement = document.getElementById(targetId);
-        
-        if (targetElement) {
-          targetElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-          });
-          
-          // Add a highlight effect
-          targetElement.classList.add('highlight-heading');
-          setTimeout(function() {
-            targetElement.classList.remove('highlight-heading');
-          }, 2000);
-        }
-      });
-    });
-  });
-</script>
+{# JavaScript functionality has been moved to common docvault.js file #}
 {% endblock %}

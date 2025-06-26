@@ -1,0 +1,319 @@
+/* DocVault Common Styles */
+
+/* Basic Layout */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.content {
+    flex: 1;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+/* Main containers */
+.container {
+    width: 100%;
+    padding-right: 15px;
+    padding-left: 15px;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+/* Document Content Styles */
+.document-content img {
+    max-width: 100%;
+    height: auto;
+}
+
+.document-metadata {
+    font-size: 0.9rem;
+}
+
+/* Table of Contents */
+#toc {
+    font-size: 0.95rem;
+    position: relative;
+    padding: 8px 0;
+}
+
+#toc ul {
+    padding-left: 0;
+    margin-bottom: 0;
+}
+
+#toc li {
+    margin-bottom: 3px;
+    list-style-type: none;
+    position: relative;
+    transition: all 0.15s ease;
+    line-height: 1.4;
+    border-radius: 3px;
+}
+
+#toc li:hover {
+    background-color: #f1f4f9;
+}
+
+#toc a {
+    display: block;
+    text-decoration: none;
+    color: #495057;
+    padding: 4px 10px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s ease-in-out;
+    font-weight: 400;
+    line-height: 1.4;
+    margin: 1px 0;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 100%;
+}
+
+#toc a:hover {
+    color: #0d6efd;
+    border-left-color: #0d6efd;
+}
+
+#toc a.active {
+    font-weight: 500;
+    color: #0d6efd;
+    border-left-color: #0d6efd;
+    background-color: #e7f0ff;
+}
+
+/* ToC levels with clear visual hierarchy */
+#toc li[data-level="1"] a {
+    font-weight: 600;
+    padding-left: 10px;
+    color: #212529;
+    white-space: nowrap;
+}
+
+#toc li[data-level="2"] a {
+    padding-left: 20px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+#toc li[data-level="3"] a {
+    padding-left: 30px;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+#toc li[data-level="4"] a {
+    padding-left: 38px;
+    font-size: 0.9rem;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+#toc li[data-level="5"] a,
+#toc li[data-level="6"] a {
+    padding-left: 44px;
+    font-size: 0.85rem;
+    color: #666;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+}
+
+/* Visual level indicators */
+#toc li[data-level="2"]::before,
+#toc li[data-level="3"]::before,
+#toc li[data-level="4"]::before,
+#toc li[data-level="5"]::before,
+#toc li[data-level="6"]::before {
+    position: absolute;
+    color: #adb5bd;
+}
+
+#toc li[data-level="2"]::before {
+    content: "•";
+    left: 10px;
+    top: 5px;
+    font-size: 10px;
+    color: #495057;
+}
+
+#toc li[data-level="3"]::before {
+    content: "◦";
+    left: 20px;
+    top: 6px;
+    font-size: 8px;
+}
+
+#toc li[data-level="4"]::before,
+#toc li[data-level="5"]::before,
+#toc li[data-level="6"]::before {
+    content: "-";
+    left: 30px;
+    top: 4px;
+    font-size: 9px;
+}
+
+#toc li:hover::before {
+    color: #0d6efd;
+}
+
+#toc li a.active::before {
+    color: #0d6efd;
+}
+
+/* Animations */
+.highlight-heading {
+    animation: highlight-fade 2s;
+}
+
+@keyframes highlight-fade {
+    0% { background-color: rgba(255, 255, 0, 0.5); }
+    50% { background-color: rgba(255, 255, 0, 0.3); }
+    100% { background-color: transparent; }
+}
+
+/* Back to top link */
+#toc a[href="#"] {
+    color: #6c757d;
+    font-size: 0.9rem;
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    border-left: none;
+    background-color: #f8f9fa;
+    margin-top: 8px;
+    border: 1px solid #dee2e6;
+    white-space: nowrap;
+    overflow: visible;
+}
+
+#toc a[href="#"]:hover {
+    color: #0d6efd;
+    background-color: #e9ecef;
+    text-decoration: none;
+    border-color: #cbd3da;
+}
+
+/* Card Styles */
+.card-header-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-header-action .card-title {
+    margin-bottom: 0;
+}
+
+/* Sidebar Improvements */
+.col-md-3 .card {
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(0,0,0,0.12);
+    width: 100%;
+    overflow: hidden;
+}
+
+.col-md-3 .card.sticky-top {
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    top: 15px;
+}
+
+.col-md-3 .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    font-weight: 500;
+    padding: 0.75rem 1rem;
+}
+
+.col-md-3 .card-body {
+    padding: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    font-size: 0.95rem;
+    background-color: #fff;
+}
+
+/* Document TOC specific styles */
+.document-toc-heading {
+    color: #495057;
+    padding: 12px 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eaedf0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.document-toc-heading .fw-bold {
+    color: #212529;
+    font-size: 1rem;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    line-height: 1.3;
+}
+
+/* Custom scrollbar for the ToC */
+.col-md-3 .card-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.col-md-3 .card-body::-webkit-scrollbar-track {
+    background: #f8f9fa;
+}
+
+.col-md-3 .card-body::-webkit-scrollbar-thumb {
+    background-color: #cfd4da;
+    border-radius: 6px;
+}
+
+.col-md-3 .card-body::-webkit-scrollbar-thumb:hover {
+    background-color: #adb5bd;
+}
+
+/* Document Version History */
+.version-card {
+    transition: background-color 0.2s;
+}
+
+.version-card:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+/* Document Changelog */
+.change-importance-high {
+    border-left: 4px solid #dc3545;
+}
+
+.change-importance-medium {
+    border-left: 4px solid #fd7e14;
+}
+
+.change-importance-low {
+    border-left: 4px solid #6c757d;
+}
+
+/* Search Results */
+.search-highlight {
+    background-color: rgba(255, 255, 0, 0.3);
+    padding: 0.1rem 0.2rem;
+    border-radius: 0.2rem;
+}
