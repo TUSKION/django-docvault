@@ -25,7 +25,7 @@ class DocumentAdmin(admin.ModelAdmin):
     list_filter = ('category', 'created_at', 'updated_at')
     search_fields = ('title', 'content')
     prepopulated_fields = {'slug': ('title',)}
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('updated_at',)
     inlines = [DocumentVersionInline, ChangelogInline]
     fieldsets = (
         (None, {
@@ -35,6 +35,11 @@ class DocumentAdmin(admin.ModelAdmin):
             'fields': ('created_by', 'created_at', 'updated_at')
         }),
     )
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:  # Editing an existing object
+            return self.readonly_fields + ('created_at',)
+        return self.readonly_fields
 
 @admin.register(DocumentVersion)
 class DocumentVersionAdmin(admin.ModelAdmin):

@@ -13,11 +13,11 @@ class DocumentListView(ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        return Document.objects.all().order_by('-updated_at')
+        return Document.objects.all().select_related('category', 'created_by').order_by('-updated_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['categories'] = DocumentCategory.objects.all()
+        context['categories'] = DocumentCategory.objects.all().prefetch_related('documents')
         return context
 
 
@@ -35,12 +35,12 @@ class DocumentListByCategoryView(ListView):
 
     def get_queryset(self):
         self.category = get_object_or_404(DocumentCategory, slug=self.kwargs['category_slug'])
-        return Document.objects.filter(category=self.category).order_by('-updated_at')
+        return Document.objects.filter(category=self.category).select_related('category', 'created_by').order_by('-updated_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['category'] = self.category
-        context['categories'] = DocumentCategory.objects.all()
+        context['categories'] = DocumentCategory.objects.all().prefetch_related('documents')
         return context
 
 
@@ -178,13 +178,13 @@ class DocumentSearchView(ListView):
             return Document.objects.filter(
                 Q(title__icontains=query) |
                 Q(content__icontains=query)
-            ).order_by('-updated_at')
+            ).select_related('category', 'created_by').order_by('-updated_at')
         return Document.objects.none()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
-        context['categories'] = DocumentCategory.objects.all()
+        context['categories'] = DocumentCategory.objects.all().prefetch_related('documents')
         return context
 
 
