@@ -2,8 +2,15 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils.text import slugify
-from tinymce.models import HTMLField
 from django.utils import timezone
+from django.conf import settings
+
+# Conditionally import TinyMCE based on settings
+if getattr(settings, 'DOCVAULT_EDITOR', 'text') == 'tinymce':
+    from tinymce.models import HTMLField
+    ContentField = HTMLField
+else:
+    ContentField = models.TextField
 
 class DocumentCategory(models.Model):
     """Categories for documents (e.g., Legal, Financial, Personal)"""
@@ -21,7 +28,7 @@ class Document(models.Model):
     """Main document model with content and version tracking"""
     title = models.CharField(max_length=200, help_text='The title of the document')
     slug = models.SlugField(max_length=200, help_text='URL-friendly version of the title')
-    content = HTMLField(help_text='The main content of the document')
+    content = ContentField(help_text='The main content of the document')
     category = models.ForeignKey(DocumentCategory, on_delete=models.PROTECT, related_name='documents')
     created_at = models.DateTimeField(default=timezone.now, help_text='Date/time the document was created')
     updated_at = models.DateTimeField(auto_now=True)
@@ -91,7 +98,7 @@ class Document(models.Model):
 class DocumentVersion(models.Model):
     """Stores each version of a document's content"""
     document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='versions')
-    content = HTMLField(help_text='The content for this version')
+    content = ContentField(help_text='The content for this version')
     version_number = models.PositiveIntegerField(help_text='Automatically incremented version number')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

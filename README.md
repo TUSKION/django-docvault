@@ -4,13 +4,35 @@ DocVault is a Django application for managing documents with version history, ch
 
 ## Features
 
-- Document management with rich text content (TinyMCE)
+- Document management with configurable content editor
 - Automatic versioning system (tracks changes to document content)
 - Document categorization
 - Search functionality
 - Table of contents generation
 - Clean URL structure
 - Responsive design
+
+## Configuration
+
+### Editor Configuration
+
+DocVault supports configurable content editors. You can choose between:
+
+- **TinyMCE** (rich text editor with HTML support)
+- **Meditor** (custom rich text editor)
+- **Plain text** (simple textarea)
+
+To configure the editor, add this setting to your Django settings:
+
+```python
+# DocVault Editor Configuration
+DOCVAULT_EDITOR = 'tinymce'  # Options: 'tinymce', 'meditor', 'text'
+```
+
+**Options:**
+- `'tinymce'` - Uses TinyMCE rich text editor (requires `django-tinymce` package)
+- `'meditor'` - Uses Meditor rich text editor (requires `django-meditor` package)
+- `'text'` - Uses plain Django TextField (default if not specified)
 
 ## URLs
 
@@ -21,7 +43,7 @@ Documents are accessible at:
 - `/docs/categories/` - List of categories
 - `/docs/<category-slug>/` - Documents in a specific category
 - `/docs/<category-slug>/<document-slug>/` - View a specific document
-- `/docs/<category-slug>/<document-slug>/versions/` - Version history
+- `/docs/<category-slug>/<document-slu>/versions/` - Version history
 - `/docs/<category-slug>/<document-slug>/version/<version-number>/` - Specific document version
 - `/docs/<category-slug>/<document-slug>/changelog/` - Document changelog
 - `/docs/<category-slug>/<document-slug>/compare/` - Document comparison
@@ -86,7 +108,7 @@ To customize the search results display, override the `search_results.html` temp
 ## Requirements
 
 - Django 5.1+
-- TinyMCE for rich text editing
+- Optional: `django-tinymce>=3.4.0` (only if using TinyMCE editor)
 
 ## License
 
