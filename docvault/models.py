@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils.text import slugify
 from tinymce.models import HTMLField
+from django.utils import timezone
 
 class DocumentCategory(models.Model):
     """Categories for documents (e.g., Legal, Financial, Personal)"""
@@ -22,7 +23,7 @@ class Document(models.Model):
     slug = models.SlugField(max_length=200, help_text='URL-friendly version of the title')
     content = HTMLField(help_text='The main content of the document')
     category = models.ForeignKey(DocumentCategory, on_delete=models.PROTECT, related_name='documents')
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now, help_text='Date/time the document was created')
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_documents')
 
@@ -62,6 +63,10 @@ class Document(models.Model):
         return headings
 
     def save(self, *args, **kwargs):
+        # Only set created_at if this is a new object and not already set
+        if not self.pk and not self.created_at:
+            self.created_at = timezone.now()
+
         # Check if this is an update to an existing document
         if self.pk:
             # Get the original document before changes
