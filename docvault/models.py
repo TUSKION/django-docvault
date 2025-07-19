@@ -42,7 +42,19 @@ class DocumentCategory(models.Model):
     def get_ancestors(self, include_self=False):
         """Get all ancestors in a single query"""
         if not self.path:
-            return []
+            # Fallback: collect parent IDs first, then single query
+            parent_ids = []
+            current = self if include_self else self.parent
+            
+            while current:
+                parent_ids.insert(0, current.id)  # Insert at beginning to maintain order
+                current = current.parent
+            
+            if not parent_ids:
+                return []
+            
+            # Single query to get all ancestors
+            return self.__class__.objects.filter(id__in=parent_ids).order_by('depth')
         
         path_parts = self.path.split('.')
         if not include_self:
@@ -80,6 +92,10 @@ class DocumentCategory(models.Model):
     def get_url_path(self):
         """Generate URL path from ancestors"""
         ancestors = self.get_ancestors(include_self=True)
+        if not ancestors:
+            # Fallback: just return the category slug
+            return self.slug
+        
         return '/'.join([cat.slug for cat in ancestors])
 
     def get_absolute_url(self):
