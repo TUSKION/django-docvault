@@ -19,14 +19,34 @@
               {% if category.description %}
                 <p class="card-text">{{ category.description }}</p>
               {% endif %}
-              <a href="{% url 'docvault:document_list_by_category' category.slug %}" class="btn btn-primary">
+              
+              {% if category.children.exists %}
+                <div class="mb-3">
+                  <h6 class="text-muted">Subcategories:</h6>
+                  <div class="list-group list-group-flush">
+                    {% for subcategory in category.children.all %}
+                      <a href="{% url 'docvault:smart_router' subcategory.get_url_path %}" 
+                         class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        {{ subcategory.name }}
+                        <span class="badge bg-secondary rounded-pill">{{ subcategory.document_count }}</span>
+                      </a>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+              
+              <a href="{% url 'docvault:smart_router' category.get_url_path %}" class="btn btn-primary">
                 Browse Documents
               </a>
             </div>
             <div class="card-footer text-muted">
-              {% with doc_count=category.documents.count %}
-                {{ doc_count }} Document{{ doc_count|pluralize }}
-              {% endwith %}
+              {% with doc_count=category.document_count %}
+{{ doc_count }} Document{{ doc_count|pluralize }}
+{% endwith %}
+{% if category.children.exists %}
+<br>
+<small>+ {{ category.child_count }} subcategor{{ category.child_count|pluralize:"y,ies" }}</small>
+{% endif %}
             </div>
           </div>
         </div>

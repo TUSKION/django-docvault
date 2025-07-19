@@ -23,7 +23,7 @@
         <div class="list-group-item">
           <div class="d-flex w-100 justify-content-between align-items-center mb-2">
             <h5 class="mb-0">
-              <a href="{% url 'docvault:document_detail' changelog.document.category.slug changelog.document.slug %}">
+              <a href="{% url 'docvault:smart_router' changelog.document.category.get_url_path|add:'/'|add:changelog.document.slug %}">
                 {{ changelog.document.title }}
               </a>
               {% if changelog.importance == 'MAJOR' %}

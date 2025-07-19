@@ -31,6 +31,9 @@ class DocumentCategory(models.Model):
             models.Index(fields=['path']),
             models.Index(fields=['depth']),
             models.Index(fields=['path', 'depth']),
+            models.Index(fields=['slug']),  # For single slug lookups
+            models.Index(fields=['parent', 'slug']),  # For parent+slug lookups
+            models.Index(fields=['parent_id']),  # For parent filtering
         ]
         ordering = ['path']
 
@@ -63,9 +66,9 @@ class DocumentCategory(models.Model):
         if not path_parts:
             return []
         
-        return self.__class__.objects.filter(
-            id__in=path_parts
-        ).order_by('depth')
+        # Use the current queryset if available (for optimization)
+        qs = getattr(self, '_prefetched_objects_cache', {}).get('ancestors', self.__class__.objects)
+        return qs.filter(id__in=path_parts).order_by('depth')
 
     def get_descendants(self, include_self=False):
         """Get all descendants in a single query"""
@@ -91,16 +94,22 @@ class DocumentCategory(models.Model):
 
     def get_url_path(self):
         """Generate URL path from ancestors"""
-        ancestors = self.get_ancestors(include_self=True)
-        if not ancestors:
-            # Fallback: just return the category slug
-            return self.slug
+        # Use cached path if available (set by view)
+        if hasattr(self, 'cached_url_path'):
+            return self.cached_url_path
         
-        return '/'.join([cat.slug for cat in ancestors])
+        # Build path by traversing up the hierarchy
+        path_parts = []
+        current = self
+        while current:
+            path_parts.insert(0, current.slug)
+            current = current.parent
+        
+        return '/'.join(path_parts)
 
     def get_absolute_url(self):
         """Returns the URL for this category"""
-        return reverse('docvault:document_list_by_category', kwargs={'category_path': self.get_url_path()})
+        return reverse('docvault:smart_router', kwargs={'path': self.get_url_path()})
 
     def get_all_documents(self):
         """Returns all documents in this category and its descendants"""
@@ -108,42 +117,57 @@ class DocumentCategory(models.Model):
         return Document.objects.filter(category_id__in=descendant_ids)
 
     @classmethod
-    def get_by_path(cls, category_path):
+    def get_by_path(cls, category_path, queryset=None):
         """Get category by URL path with optimized query"""
         if not category_path:
             return None
         
-        slugs = category_path.split('/')
+        # Clean the path and split into parts
+        category_path = category_path.strip('/')
+        slugs = [slug.strip() for slug in category_path.split('/') if slug.strip()]
+        
         if not slugs:
             return None
         
-        # If it's a single slug, just find it directly
-        if len(slugs) == 1:
+        # Use provided queryset or default
+        qs = queryset or cls.objects
+        
+        # OPTIMIZATION: Single query approach for nested paths
+        if len(slugs) > 1:
+            # Build a more efficient query that gets all categories in the path at once
+            # This avoids the N+1 problem of looking up each level separately
+            
+            # First, get all potential categories that match any of the slugs
+            potential_categories = qs.select_related('parent').filter(slug__in=slugs)
+            
+            # Build a lookup by slug for quick access
+            categories_by_slug = {cat.slug: cat for cat in potential_categories}
+            
+            # Now traverse the path efficiently
+            current_parent = None
+            current_category = None
+            
+            for slug in slugs:
+                # Find the category with this slug and the correct parent
+                found_category = None
+                for cat in potential_categories:
+                    if cat.slug == slug and cat.parent == current_parent:
+                        found_category = cat
+                        break
+                
+                if not found_category:
+                    return None
+                
+                current_category = found_category
+                current_parent = current_category
+            
+            return current_category
+        else:
+            # Single slug - find root category
             try:
-                return cls.objects.get(slug=slugs[0])
+                return qs.select_related('parent').get(slug=slugs[0], parent=None)
             except cls.DoesNotExist:
                 return None
-        
-        # For nested paths, find by the last slug and verify the full path
-        last_slug = slugs[-1]
-        try:
-            category = cls.objects.get(slug=last_slug)
-            
-            # Build the expected path by traversing up the hierarchy
-            expected_path = []
-            current = category
-            while current:
-                expected_path.insert(0, current.slug)
-                current = current.parent
-            
-            expected_path_str = '/'.join(expected_path)
-            
-            if expected_path_str == category_path:
-                return category
-            else:
-                return None
-        except cls.DoesNotExist:
-            return None
 
     @classmethod
     def get_breadcrumbs(cls, category):
@@ -221,14 +245,51 @@ class Document(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_documents')
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['slug']),  # For slug lookups
+            models.Index(fields=['category', 'slug']),  # For category+slug lookups
+            models.Index(fields=['category_id']),  # For category filtering
+            models.Index(fields=['updated_at']),  # For ordering by updated_at
+            models.Index(fields=['created_at']),  # For ordering by created_at
+        ]
+
     def __str__(self):
         return self.title
 
     def get_absolute_url(self):
         """Returns the URL to access a particular document"""
-        return reverse('docvault:document_detail', kwargs={
+        return reverse('docvault:smart_router', kwargs={
+            'path': f"{self.category.get_url_path()}/{self.slug}"
+        })
+
+    def get_changelog_url(self):
+        """Returns the URL to access the document's changelog"""
+        return reverse('docvault:document_changelog', kwargs={
             'category_path': self.category.get_url_path(),
             'document_slug': self.slug
+        })
+
+    def get_versions_url(self):
+        """Returns the URL to access the document's version history"""
+        return reverse('docvault:version_history', kwargs={
+            'category_path': self.category.get_url_path(),
+            'document_slug': self.slug
+        })
+
+    def get_compare_url(self):
+        """Returns the URL to access the document's compare page"""
+        return reverse('docvault:document_compare', kwargs={
+            'category_path': self.category.get_url_path(),
+            'document_slug': self.slug
+        })
+
+    def get_version_url(self, version_number):
+        """Returns the URL to access a specific version of the document"""
+        return reverse('docvault:document_version', kwargs={
+            'category_path': self.category.get_url_path(),
+            'document_slug': self.slug,
+            'version_number': version_number
         })
 
     def generate_toc(self):

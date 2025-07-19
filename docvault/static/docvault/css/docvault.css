@@ -227,6 +227,27 @@ body {
     overflow: hidden;
 }
 
+/* Hierarchical sidebar categories */
+.list-group-item.ps-4 {
+    border-left: 2px solid #e9ecef;
+    margin-left: 8px;
+    border-radius: 0 0.375rem 0.375rem 0;
+}
+
+.list-group-item.ps-4:hover {
+    border-left-color: #0d6efd;
+    background-color: #f8f9fa;
+}
+
+.list-group-item.ps-4 small {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.list-group-item.ps-4:hover small {
+    color: #0d6efd;
+}
+
 .col-md-3 .card.sticky-top {
     max-height: calc(100vh - 40px);
     display: flex;

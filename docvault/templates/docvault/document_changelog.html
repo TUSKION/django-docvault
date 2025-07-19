@@ -6,7 +6,7 @@
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
   <h1>Document Changelog</h1>
-    <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}" class="btn btn-outline-primary">
+    <a href="{% url 'docvault:smart_router' document.category.get_url_path|add:'/'|add:document.slug %}" class="btn btn-outline-primary">
       <i class="bi bi-arrow-left"></i> Back to Document
     </a>
 </div>
@@ -62,7 +62,7 @@
 
             {% if changelog.version %}
               {% if document.category %}
-                <a href="{% url 'docvault:document_version' document.category.slug document.slug changelog.version.version_number %}" class="btn btn-sm btn-outline-primary">
+                <a href="{% url 'docvault:document_version' document.category.get_url_path document.slug changelog.version.version_number %}" class="btn btn-sm btn-outline-primary">
                   View Version
                 </a>
               {% else %}

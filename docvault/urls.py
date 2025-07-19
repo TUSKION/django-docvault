@@ -1,16 +1,38 @@
-from django.urls import path, re_path
+from django.urls import path, re_path, register_converter
 from django.views.generic import TemplateView
 from .views import (
     DocumentListView, DocumentDetailView, CategoryListView,
     DocumentListByCategoryView, VersionHistoryView, DocumentVersionView,
     DocumentChangelogView, DocumentSearchView, GlobalChangelogView,
-    DocumentCompareView
+    DocumentCompareView, SmartRouterView
 )
+
+# Custom path converter that handles slash-separated paths
+class CategoryPathConverter:
+    regex = '[a-z0-9\-]+(?:/[a-z0-9\-]+)*'
+    
+    def to_python(self, value):
+        return value
+    
+    def to_url(self, value):
+        return value
+
+# Custom path converter that validates document exists
+class DocumentSlugConverter:
+    regex = '[a-z0-9\-]+'
+    
+    def to_python(self, value):
+        return value
+    
+    def to_url(self, value):
+        return value
+
+register_converter(CategoryPathConverter, 'category_path')
+register_converter(DocumentSlugConverter, 'docslug')
 
 app_name = 'docvault'
 
 urlpatterns = [
-    
     # Global changelog
     path('changelog/', GlobalChangelogView.as_view(), name='global_changelog'),
     
@@ -21,13 +43,32 @@ urlpatterns = [
     # Category navigation
     path('categories/', CategoryListView.as_view(), name='category_list'),
     
-    # Documents with nested category paths (MUST come before category paths)
-    re_path(r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/$', DocumentDetailView.as_view(), name='document_detail'),
-    re_path(r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/versions/$', VersionHistoryView.as_view(), name='version_history'),
-    re_path(r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/version/(?P<version_number>\d+)/$', DocumentVersionView.as_view(), name='document_version'),
-    re_path(r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/changelog/$', DocumentChangelogView.as_view(), name='document_changelog'),
-    re_path(r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/compare/$', DocumentCompareView.as_view(), name='document_compare'),
+    # Document action URLs - These MUST come first because they have specific endings
+    re_path(
+        r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/changelog/$', 
+        DocumentChangelogView.as_view(), 
+        name='document_changelog'
+    ),
+    re_path(
+        r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/versions/$', 
+        VersionHistoryView.as_view(), 
+        name='version_history'
+    ),
+    re_path(
+        r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/version/(?P<version_number>\d+)/$', 
+        DocumentVersionView.as_view(), 
+        name='document_version'
+    ),
+    re_path(
+        r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/(?P<document_slug>[a-z0-9\-]+)/compare/$', 
+        DocumentCompareView.as_view(), 
+        name='document_compare'
+    ),
     
-    # Nested category paths - supports unlimited nesting (MUST come after document paths)
-    re_path(r'^(?P<category_path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/$', DocumentListByCategoryView.as_view(), name='document_list_by_category'),
+    # Smart router - handles both categories and documents (MUST come last)
+    re_path(
+        r'^(?P<path>[a-z0-9\-]+(?:/[a-z0-9\-]+)*)/$',
+        SmartRouterView.as_view(), 
+        name='smart_router'
+    ),
 ]

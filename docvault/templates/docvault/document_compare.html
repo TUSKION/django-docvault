@@ -11,7 +11,7 @@
       <h4 class="text-muted">{{ document.title }}</h4>
     </div>
     <div class="col-md-4 text-md-end">
-      <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}" class="btn btn-outline-primary">
+      <a href="{% url 'docvault:smart_router' document.category.get_url_path|add:'/'|add:document.slug %}" class="btn btn-outline-primary">
         <i class="bi bi-arrow-left"></i> Back to Document
       </a>
     </div>
@@ -24,7 +24,7 @@
         <h5 class="card-title mb-0">Select Versions to Compare</h5>
       </div>
       <div class="card-body">
-        <form method="get" action="{% url 'docvault:document_compare' document.category.slug document.slug %}">
+        <form method="get" action="{% url 'docvault:document_compare' document.category.get_url_path document.slug %}">
           <div class="row">
             <div class="col-md-5">
               <div class="form-group">
@@ -92,7 +92,7 @@
                     {% endif %}
                   </td>
                   <td>
-                    <a href="{% url 'docvault:document_version' document.category.slug document.slug version.version_number %}" 
+                    <a href="{% url 'docvault:document_version' document.category.get_url_path document.slug version.version_number %}" 
                        class="btn btn-sm btn-outline-secondary">
                       <i class="bi bi-eye"></i> View
                     </a>
@@ -113,7 +113,7 @@
           <h5 class="card-title mb-0">
             Comparing Version {{ version1.version_number }} to Version {{ version2.version_number }}
           </h5>
-          <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}" 
+          <a href="{% url 'docvault:document_compare' document.category.get_url_path document.slug %}?select=true" 
              class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-repeat"></i> Change Versions
           </a>

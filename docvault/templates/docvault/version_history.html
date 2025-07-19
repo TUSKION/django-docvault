@@ -6,7 +6,7 @@
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
   <h1>Version History</h1>
-  <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}" class="btn btn-outline-primary">
+  <a href="{% url 'docvault:smart_router' document.category.get_url_path|add:'/'|add:document.slug %}" class="btn btn-outline-primary">
     <i class="bi bi-arrow-left"></i> Back to Document
   </a>
 </div>
@@ -17,7 +17,7 @@
 <div class="card mb-4">
   <div class="card-header bg-light d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Document Information</h5>
-    <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}" class="btn btn-outline-primary btn-sm">
+    <a href="{% url 'docvault:document_compare' document.category.get_url_path document.slug %}" class="btn btn-outline-primary btn-sm">
       <i class="bi bi-code-slash"></i> Compare Versions
     </a>
   </div>
@@ -60,10 +60,10 @@
             </td>
             <td>
               <div class="btn-group btn-group-sm">
-                <a href="{% url 'docvault:document_version' document.category.slug document.slug version.version_number %}" class="btn btn-outline-primary">
+                <a href="{% url 'docvault:document_version' document.category.get_url_path document.slug version.version_number %}" class="btn btn-outline-primary">
                   <i class="bi bi-eye"></i> View
                 </a>
-                <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}?v1={{ version.version_number }}&v2={{ versions.0.version_number }}" class="btn btn-outline-secondary">
+                <a href="{% url 'docvault:document_compare' document.category.get_url_path document.slug %}?v1={{ version.version_number }}&v2={{ versions.0.version_number }}" class="btn btn-outline-secondary">
                   <i class="bi bi-code-slash"></i> Compare
                 </a>
               </div>

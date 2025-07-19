@@ -32,9 +32,9 @@
             <div class="d-flex w-100 justify-content-between">
               <h5 class="mb-1">
                 {% if document.category %}
-                  <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}">{{ document.title }}</a>
+                  <a href="{% url 'docvault:smart_router' document.category.get_url_path|add:'/'|add:document.slug %}">{{ document.title }}</a>
                 {% else %}
-                  <a href="{% url 'docvault:document_detail_no_category' document.slug %}">{{ document.title }}</a>
+                  <a href="{% url 'docvault:smart_router' document.slug %}">{{ document.title }}</a>
                 {% endif %}
               </h5>
               <small class="text-muted">{{ document.updated_at|date:"M d, Y" }}</small>

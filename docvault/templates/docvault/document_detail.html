@@ -48,7 +48,7 @@
     <h1>{{ document.title }}</h1>
     <div>
         {% if document.category %}
-        <a href="{% url 'docvault:document_list_by_category' document.category.slug %}" class="btn btn-outline-secondary btn-sm">
+        <a href="{% url 'docvault:smart_router' document.category.get_url_path %}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-folder"></i> {{ document.category.name }}
         </a>
         {% endif %}
@@ -70,13 +70,13 @@
                 <div class="col-md-6 text-md-end">
                     <p><strong>Last Updated:</strong> {{ document.updated_at|date:"F j, Y, g:i a" }}</p>
                     <div class="btn-group">
-                        <a href="{% url 'docvault:version_history' document.category.slug document.slug %}" class="btn btn-outline-primary btn-sm">
+                        <a href="{% url 'docvault:version_history' document.category.get_url_path document.slug %}" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-clock-history"></i> Version History
                         </a>
-                        <a href="{% url 'docvault:document_changelog' document.category.slug document.slug %}" class="btn btn-outline-info btn-sm">
+                        <a href="{% url 'docvault:document_changelog' document.category.get_url_path document.slug %}" class="btn btn-outline-info btn-sm">
                             <i class="bi bi-list-check"></i> Changelog
                         </a>
-                        <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}" class="btn btn-outline-secondary btn-sm">
+                        <a href="{% url 'docvault:document_compare' document.category.get_url_path document.slug %}" class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-code-slash"></i> Compare Versions
                         </a>
                     </div>
@@ -105,10 +105,10 @@
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="card-title mb-0">Recent Versions</h5>
             <div>
-                <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}" class="btn btn-sm btn-outline-secondary me-2">
+                <a href="{% url 'docvault:document_compare' document.category.get_url_path document.slug %}" class="btn btn-sm btn-outline-secondary me-2">
                     <i class="bi bi-code-slash"></i> Compare
                 </a>
-                <a href="{% url 'docvault:version_history' document.category.slug document.slug %}" class="btn btn-sm btn-link">View All</a>
+                <a href="{% url 'docvault:version_history' document.category.get_url_path document.slug %}" class="btn btn-sm btn-link">View All</a>
             </div>
         </div>
         <div class="list-group list-group-flush">
@@ -120,10 +120,10 @@
                         <small class="text-muted">{{ version.created_at|date:"F j, Y, g:i a" }}</small>
                     </div>
                     <div class="btn-group btn-group-sm">
-                        <a href="{% url 'docvault:document_version' document.category.slug document.slug version.version_number %}" class="btn btn-outline-secondary">
+                        <a href="{% url 'docvault:document_version' document.category.get_url_path document.slug version.version_number %}" class="btn btn-outline-secondary">
                             <i class="bi bi-eye"></i> View
                         </a>
-                        <a href="{% url 'docvault:document_compare' document.category.slug document.slug %}?v1={{ version.version_number }}&v2={{ recent_versions.0.version_number }}" class="btn btn-outline-primary">
+                        <a href="{% url 'docvault:document_compare' document.category.get_url_path document.slug %}?v1={{ version.version_number }}&v2={{ recent_versions.0.version_number }}" class="btn btn-outline-primary">
                             <i class="bi bi-code-slash"></i> Compare
                         </a>
                     </div>
@@ -141,7 +141,7 @@
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="card-title mb-0">Recent Changes</h5>
             {% if document.category %}
-            <a href="{% url 'docvault:document_changelog' document.category.slug document.slug %}" class="btn btn-sm btn-link">View All</a>
+            <a href="{% url 'docvault:document_changelog' document.category.get_url_path document.slug %}" class="btn btn-sm btn-link">View All</a>
             {% else %}
             <a href="{% url 'docvault:document_changelog_no_category' document.slug %}" class="btn btn-sm btn-link">View All</a>
             {% endif %}

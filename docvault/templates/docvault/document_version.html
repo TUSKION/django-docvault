@@ -8,11 +8,11 @@
   <h1>{{ document.title }}</h1>
   <div>
     {% if document.category %}
-      <a href="{% url 'docvault:document_detail' document.category.slug document.slug %}" class="btn btn-outline-primary">
+      <a href="{% url 'docvault:smart_router' document.category.get_url_path|add:'/'|add:document.slug %}" class="btn btn-outline-primary">
         <i class="bi bi-arrow-left"></i> Current Version
       </a>
     {% else %}
-      <a href="{% url 'docvault:document_detail_no_category' document.slug %}" class="btn btn-outline-primary">
+      <a href="{% url 'docvault:smart_router' document.slug %}" class="btn btn-outline-primary">
         <i class="bi bi-arrow-left"></i> Current Version
       </a>
     {% endif %}
@@ -27,7 +27,7 @@
   <div>
     {% if previous_version %}
       {% if document.category %}
-        <a href="{% url 'docvault:document_version' document.category.slug document.slug previous_version.version_number %}" class="btn btn-sm btn-outline-secondary">
+        <a href="{% url 'docvault:document_version' document.category.get_url_path document.slug previous_version.version_number %}" class="btn btn-sm btn-outline-secondary">
           <i class="bi bi-arrow-left"></i> Version {{ previous_version.version_number }}
         </a>
       {% else %}
@@ -40,7 +40,7 @@
   
   <div>
     {% if document.category %}
-      <a href="{% url 'docvault:version_history' document.category.slug document.slug %}" class="btn btn-sm btn-outline-info">
+      <a href="{% url 'docvault:version_history' document.category.get_url_path document.slug %}" class="btn btn-sm btn-outline-info">
         <i class="bi bi-clock-history"></i> Version History
       </a>
     {% else %}
@@ -53,7 +53,7 @@
   <div>
     {% if next_version %}
       {% if document.category %}
-        <a href="{% url 'docvault:document_version' document.category.slug document.slug next_version.version_number %}" class="btn btn-sm btn-outline-secondary">
+        <a href="{% url 'docvault:document_version' document.category.get_url_path document.slug next_version.version_number %}" class="btn btn-sm btn-outline-secondary">
           Version {{ next_version.version_number }} <i class="bi bi-arrow-right"></i>
         </a>
       {% else %}

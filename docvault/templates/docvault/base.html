@@ -60,9 +60,20 @@
                     <div class="list-group list-group-flush">
                         {% block sidebar_categories %}
                             {% for category in categories %}
-                                <a href="{% url 'docvault:document_list_by_category' category.slug %}" class="list-group-item list-group-item-action">
+                                <a href="{% url 'docvault:smart_router' category.cached_url_path %}" 
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                     {{ category.name }}
+                                    <span class="badge bg-primary rounded-pill">{{ category.document_count }}</span>
                                 </a>
+                                {% if category.children.exists %}
+                                    {% for subcategory in category.children.all %}
+                                        <a href="{% url 'docvault:smart_router' subcategory.cached_url_path %}" 
+                                           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ps-4">
+                                            <small>{{ subcategory.name }}</small>
+                                            <span class="badge bg-secondary rounded-pill">{{ subcategory.document_count }}</span>
+                                        </a>
+                                    {% endfor %}
+                                {% endif %}
                             {% empty %}
                                 <div class="list-group-item">No categories found</div>
                             {% endfor %}
