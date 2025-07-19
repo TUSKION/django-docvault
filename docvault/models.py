@@ -117,15 +117,33 @@ class DocumentCategory(models.Model):
         if not slugs:
             return None
         
-        # More efficient approach: find by matching the last slug and checking path
+        # If it's a single slug, just find it directly
+        if len(slugs) == 1:
+            try:
+                return cls.objects.get(slug=slugs[0])
+            except cls.DoesNotExist:
+                return None
+        
+        # For nested paths, find by the last slug and verify the full path
         last_slug = slugs[-1]
-        candidates = cls.objects.filter(slug=last_slug)
-        
-        for candidate in candidates:
-            if candidate.get_url_path() == category_path:
-                return candidate
-        
-        return None
+        try:
+            category = cls.objects.get(slug=last_slug)
+            
+            # Build the expected path by traversing up the hierarchy
+            expected_path = []
+            current = category
+            while current:
+                expected_path.insert(0, current.slug)
+                current = current.parent
+            
+            expected_path_str = '/'.join(expected_path)
+            
+            if expected_path_str == category_path:
+                return category
+            else:
+                return None
+        except cls.DoesNotExist:
+            return None
 
     @classmethod
     def get_breadcrumbs(cls, category):
