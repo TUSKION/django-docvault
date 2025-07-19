@@ -1,13 +1,14 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import ListView, DetailView, View
-from django.shortcuts import get_object_or_404, render, redirect
 from django.http import Http404
 from django.db.models import Q, Count
 
 from .models import Document, DocumentCategory, DocumentVersion, Changelog
+from .mixins import CategoryContextMixin, DocumentContextMixin
+from .utils import get_optimized_categories_queryset, compute_url_paths, get_documents_for_category
 
 
-class DocumentListView(ListView):
+class DocumentListView(CategoryContextMixin, ListView):
     model = Document
     template_name = 'docvault/document_list.html'
     context_object_name = 'documents'
@@ -18,55 +19,17 @@ class DocumentListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # Get all categories with counts in one query (avoid N+1)
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            categories = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            categories = DocumentCategory.objects.filter(parent=None)\
-                .prefetch_related('children', 'children__documents')\
-                .annotate(
-                    document_count=Count('documents'),
-                    child_count=Count('children')
-                )
-            
-            # Pre-compute URL paths for categories (required by base template)
-            for category in categories:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
-        
-        context['categories'] = categories
+        context['categories'] = self.get_categories_with_url_paths()
         return context
 
 
-class CategoryListView(ListView):
+class CategoryListView(CategoryContextMixin, ListView):
     model = DocumentCategory
     template_name = 'docvault/category_list.html'
     context_object_name = 'categories'
 
     def get_queryset(self):
-        return DocumentCategory.objects.filter(parent=None)\
-            .prefetch_related('children', 'children__documents')\
-            .annotate(
-                document_count=Count('documents'),
-                child_count=Count('children')
-            )
+        return get_optimized_categories_queryset()
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -77,28 +40,12 @@ class CategoryListView(ListView):
             context['categories'] = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
         else:
             # Pre-compute URL paths for categories (required by base template)
-            for category in context['categories']:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
+            compute_url_paths(context['categories'])
         
         return context
 
 
-class DocumentListByCategoryView(ListView):
+class DocumentListByCategoryView(CategoryContextMixin, ListView):
     model = Document
     template_name = 'docvault/document_list.html'
     context_object_name = 'documents'
@@ -109,108 +56,29 @@ class DocumentListByCategoryView(ListView):
         if hasattr(self.request, '_prefetched_data') and hasattr(self.request, '_category_cache'):
             category = self.request._category_cache.get(self.kwargs['category_path'])
             if category:
-                # Set the category attribute for use in get_context_data
                 self.category = category
-                
-                # Category was already found and cached, use it
-                # Get documents from pre-fetched data
-                documents = []
-                for document in self.request._prefetched_data['all_documents']:
-                    if document.category_id == category.id:
-                        documents.append(document)
-                
-                # Sort by updated_at (descending)
-                documents.sort(key=lambda x: x.updated_at, reverse=True)
-                
-                # Pre-compute URL paths for document categories
-                for document in documents:
-                    if document.category:
-                        # Build path from the already-fetched parent data
-                        path_parts = []
-                        current = document.category
-                        while current:
-                            path_parts.insert(0, current.slug)
-                            current = getattr(current, 'parent', None)
-                        document.category.cached_url_path = '/'.join(path_parts)
-                
-                return documents
+                return get_documents_for_category(
+                    category, 
+                    use_prefetched_data=True, 
+                    prefetched_documents=self.request._prefetched_data['all_documents']
+                )
         
         # Fallback: Get category with all optimizations in one query
         optimized_qs = DocumentCategory.objects.select_related('parent')\
-            .prefetch_related(
-                'children',
-                'children__documents',
-                'documents'
-            )\
-            .annotate(
-                document_count=Count('documents'),
-                child_count=Count('children')
-            )
+            .prefetch_related('children', 'children__documents', 'documents')\
+            .annotate(document_count=Count('documents'), child_count=Count('children'))
         
-        self.category = DocumentCategory.get_by_path(
-            self.kwargs['category_path'], 
-            queryset=optimized_qs
-        )
+        self.category = DocumentCategory.get_by_path(self.kwargs['category_path'], queryset=optimized_qs)
         
         if not self.category:
             raise Http404("Category not found")
         
-        documents = Document.objects.filter(category=self.category)\
-            .select_related('category', 'category__parent', 'created_by')\
-            .order_by('-updated_at')
-        
-        # Pre-compute URL paths for document categories
-        for document in documents:
-            if document.category:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = document.category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                document.category.cached_url_path = '/'.join(path_parts)
-        
-        return documents
+        return get_documents_for_category(self.category)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['category'] = self.category
-        
-        # Get all categories with counts in one query (avoid N+1)
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            context['categories'] = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            # Only if not already cached on request
-            if not hasattr(self.request, '_categories_cache'):
-                self.request._categories_cache = DocumentCategory.objects.filter(parent=None)\
-                    .prefetch_related('children', 'children__documents')\
-                    .annotate(
-                        document_count=Count('documents'),
-                        child_count=Count('children')
-                    )
-            
-            context['categories'] = self.request._categories_cache
-            
-            # Pre-compute URL paths using already-fetched data (no extra queries)
-            for category in context['categories']:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
+        context['categories'] = self.get_categories_with_url_paths()
         
         # Optimized breadcrumb generation (cached)
         if not hasattr(self.request, '_breadcrumbs_cache'):
@@ -225,66 +93,32 @@ class DocumentListByCategoryView(ListView):
         return context
 
 
-class DocumentDetailView(DetailView):
+class DocumentDetailView(CategoryContextMixin, DocumentContextMixin, DetailView):
     model = Document
     template_name = 'docvault/document_detail.html'
     context_object_name = 'document'
 
     def get_object(self):
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data') and hasattr(self.request, '_document_cache'):
-            cached_document = self.request._document_cache
-            if cached_document.slug == self.kwargs['document_slug']:
-                # Document was already found and cached, but we need to add the prefetches
-                # Get the document with all the prefetches we need
-                document = Document.objects.select_related('category', 'category__parent', 'created_by')\
-                    .prefetch_related(
-                        'versions',
-                        'changelogs'
-                    )\
-                    .get(id=cached_document.id)
-                return document
-        
-        # Use cached category if available (from SmartRouterView)
-        if hasattr(self.request, '_category_cache'):
-            category = self.request._category_cache.get(self.kwargs['category_path'])
-            if category:
-                # Category was already found and cached, use it
-                try:
-                    document = Document.objects.select_related('category', 'category__parent', 'created_by')\
-                        .prefetch_related(
-                            'versions',
-                            'changelogs'
-                        )\
-                        .get(
-                            category=category,
-                            slug=self.kwargs['document_slug']
-                        )
-                    return document
-                except Document.DoesNotExist:
-                    raise Http404("Document not found")
+        # Try to get document from cache first
+        document = self.get_document_from_cache(self.kwargs['category_path'], self.kwargs['document_slug'])
+        if document:
+            return document
         
         # Fallback: Get document with all optimizations in one query
         try:
-            document = Document.objects.select_related('category', 'category__parent', 'created_by')\
-                .prefetch_related(
-                    'versions',
-                    'changelogs'
-                )\
+            return Document.objects.select_related('category', 'category__parent', 'created_by')\
+                .prefetch_related('versions', 'changelogs')\
                 .get(slug=self.kwargs['document_slug'])
-            return document
         except Document.DoesNotExist:
             raise Http404("Document not found")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        document = self.object  # Use self.object instead of calling get_object() again
+        document = self.object
 
         # Use prefetched data (no additional queries)
         context['recent_versions'] = list(document.versions.all()[:5])
         context['recent_changes'] = list(document.changelogs.all()[:5])
-
-        # Generate table of contents
         context['table_of_contents'] = document.generate_toc()
 
         # Optimized breadcrumb generation (cached)
@@ -296,55 +130,20 @@ class DocumentDetailView(DetailView):
             self.request._breadcrumbs_cache[breadcrumb_key] = DocumentCategory.get_breadcrumbs(document.category)
         
         context['breadcrumbs'] = self.request._breadcrumbs_cache[breadcrumb_key]
-
-        # Get all categories with counts in one query (avoid N+1) - CACHE THIS!
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            context['categories'] = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            if not hasattr(self.request, '_categories_cache'):
-                self.request._categories_cache = DocumentCategory.objects.filter(parent=None)\
-                    .prefetch_related('children', 'children__documents')\
-                    .annotate(
-                        document_count=Count('documents'),
-                        child_count=Count('children')
-                    )
-            
-            context['categories'] = self.request._categories_cache
-            
-            # Pre-compute URL paths using already-fetched data (no extra queries)
-            for category in context['categories']:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
+        context['categories'] = self.get_categories_with_url_paths()
 
         return context
 
 
-class VersionHistoryView(ListView):
+class VersionHistoryView(CategoryContextMixin, DocumentContextMixin, ListView):
     template_name = 'docvault/version_history.html'
     context_object_name = 'versions'
     paginate_by = 15
 
     def get_document(self):
         # Use request-level cache if available
-        if hasattr(self.request, '_category_cache'):
-            category = self.request._category_cache.get(self.kwargs['category_path'])
-        else:
+        category = self.get_category_from_cache(self.kwargs['category_path'])
+        if not category:
             category = DocumentCategory.get_by_path(self.kwargs['category_path'])
         
         if not category:
@@ -365,56 +164,19 @@ class VersionHistoryView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['document'] = self.document
-        
-        # Optimized breadcrumb generation
         context['breadcrumbs'] = DocumentCategory.get_breadcrumbs(self.document.category)
-        
-        # Get all categories with counts in one query (avoid N+1)
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            categories = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            categories = DocumentCategory.objects.filter(parent=None)\
-                .prefetch_related('children', 'children__documents')\
-                .annotate(
-                    document_count=Count('documents'),
-                    child_count=Count('children')
-                )
-            
-            # Pre-compute URL paths for categories (required by base template)
-            for category in categories:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
-        
-        context['categories'] = categories
-        
+        context['categories'] = self.get_categories_with_url_paths()
         return context
 
 
-class DocumentVersionView(DetailView):
+class DocumentVersionView(CategoryContextMixin, DocumentContextMixin, DetailView):
     template_name = 'docvault/document_version.html'
     context_object_name = 'version'
 
     def get_document(self):
         # Use request-level cache if available
-        if hasattr(self.request, '_category_cache'):
-            category = self.request._category_cache.get(self.kwargs['category_path'])
-        else:
+        category = self.get_category_from_cache(self.kwargs['category_path'])
+        if not category:
             category = DocumentCategory.get_by_path(self.kwargs['category_path'])
         
         if not category:
@@ -464,56 +226,21 @@ class DocumentVersionView(DetailView):
         except Changelog.DoesNotExist:
             context['changelog'] = None
 
-        # Optimized breadcrumb generation
         context['breadcrumbs'] = DocumentCategory.get_breadcrumbs(self.document.category)
-        
-        # Get all categories with counts in one query (avoid N+1)
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            categories = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            categories = DocumentCategory.objects.filter(parent=None)\
-                .prefetch_related('children', 'children__documents')\
-                .annotate(
-                    document_count=Count('documents'),
-                    child_count=Count('children')
-                )
-            
-            # Pre-compute URL paths for categories (required by base template)
-            for category in categories:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
-        
-        context['categories'] = categories
+        context['categories'] = self.get_categories_with_url_paths()
 
         return context
 
 
-class DocumentChangelogView(ListView):
+class DocumentChangelogView(CategoryContextMixin, DocumentContextMixin, ListView):
     template_name = 'docvault/document_changelog.html'
     context_object_name = 'changelogs'
     paginate_by = 15
 
     def get_document(self):
         # Use request-level cache if available
-        if hasattr(self.request, '_category_cache'):
-            category = self.request._category_cache.get(self.kwargs['category_path'])
-        else:
+        category = self.get_category_from_cache(self.kwargs['category_path'])
+        if not category:
             category = DocumentCategory.get_by_path(self.kwargs['category_path'])
         
         if not category:
@@ -534,48 +261,12 @@ class DocumentChangelogView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['document'] = self.document
-        
-        # Optimized breadcrumb generation
         context['breadcrumbs'] = DocumentCategory.get_breadcrumbs(self.document.category)
-        
-        # Get all categories with counts in one query (avoid N+1)
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            categories = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            categories = DocumentCategory.objects.filter(parent=None)\
-                .prefetch_related('children', 'children__documents')\
-                .annotate(
-                    document_count=Count('documents'),
-                    child_count=Count('children')
-                )
-            
-            # Pre-compute URL paths for categories (required by base template)
-            for category in categories:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
-        
-        context['categories'] = categories
-        
+        context['categories'] = self.get_categories_with_url_paths()
         return context
 
 
-class DocumentSearchView(ListView):
+class DocumentSearchView(CategoryContextMixin, ListView):
     """Search for documents by title and content"""
     model = Document
     template_name = 'docvault/search_results.html'
@@ -594,44 +285,11 @@ class DocumentSearchView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
-        
-        # Get all categories with counts in one query (avoid N+1)
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            categories = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            categories = DocumentCategory.objects.filter(parent=None)\
-                .prefetch_related('children', 'children__documents')\
-                .annotate(
-                    document_count=Count('documents'),
-                    child_count=Count('children')
-                )
-            
-            # Pre-compute URL paths for categories (required by base template)
-            for category in categories:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
-        
-        context['categories'] = categories
+        context['categories'] = self.get_categories_with_url_paths()
         return context
 
 
-class GlobalChangelogView(ListView):
+class GlobalChangelogView(CategoryContextMixin, ListView):
     """Shows important changes across all documents"""
     template_name = 'docvault/global_changelog.html'
     context_object_name = 'changelogs'
@@ -645,52 +303,18 @@ class GlobalChangelogView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # Get all categories with counts in one query (avoid N+1)
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(self.request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            categories = [cat for cat in self.request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            categories = DocumentCategory.objects.filter(parent=None)\
-                .prefetch_related('children', 'children__documents')\
-                .annotate(
-                    document_count=Count('documents'),
-                    child_count=Count('children')
-                )
-            
-            # Pre-compute URL paths for categories (required by base template)
-            for category in categories:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
-        
-        context['categories'] = categories
+        context['categories'] = self.get_categories_with_url_paths()
         return context
 
 
-class DocumentCompareView(View):
+class DocumentCompareView(CategoryContextMixin, DocumentContextMixin, View):
     """Compare two versions of a document and show the differences"""
     template_name = 'docvault/document_compare.html'
 
     def get(self, request, **kwargs):
         # Use request-level cache if available
-        if hasattr(request, '_category_cache'):
-            category = request._category_cache.get(kwargs['category_path'])
-        else:
+        category = self.get_category_from_cache(kwargs['category_path'])
+        if not category:
             category = DocumentCategory.get_by_path(kwargs['category_path'])
         
         if not category:
@@ -722,49 +346,14 @@ class DocumentCompareView(View):
             version1 = get_object_or_404(DocumentVersion, document=document, version_number=version1_id)
             version2 = get_object_or_404(DocumentVersion, document=document, version_number=version2_id)
         
-        # Optimized breadcrumb generation
-        breadcrumbs = DocumentCategory.get_breadcrumbs(document.category)
-        
-        # Get all categories with counts in one query (avoid N+1)
-        # Use pre-fetched data if available (from SmartRouterView)
-        if hasattr(request, '_prefetched_data'):
-            # Use the pre-fetched categories that already have cached_url_path computed
-            categories = [cat for cat in request._prefetched_data['all_categories'] if cat.parent is None]
-        else:
-            categories = DocumentCategory.objects.filter(parent=None)\
-                .prefetch_related('children', 'children__documents')\
-                .annotate(
-                    document_count=Count('documents'),
-                    child_count=Count('children')
-                )
-            
-            # Pre-compute URL paths for categories (required by base template)
-            for category in categories:
-                # Build path from the already-fetched parent data
-                path_parts = []
-                current = category
-                while current:
-                    path_parts.insert(0, current.slug)
-                    current = getattr(current, 'parent', None)
-                category.cached_url_path = '/'.join(path_parts)
-                
-                # Do the same for children
-                for subcategory in category.children.all():
-                    path_parts = []
-                    current = subcategory
-                    while current:
-                        path_parts.insert(0, current.slug)
-                        current = getattr(current, 'parent', None)
-                    subcategory.cached_url_path = '/'.join(path_parts)
-        
         context = {
             'document': document,
             'version1': version1,
             'version2': version2,
             'versions': document.versions.all().order_by('-version_number'),
             'compare_mode': 'diff' if version1 and version2 else 'select',
-            'breadcrumbs': breadcrumbs,
-            'categories': categories
+            'breadcrumbs': DocumentCategory.get_breadcrumbs(document.category),
+            'categories': self.get_categories_with_url_paths()
         }
         
         return render(request, self.template_name, context)
