@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "django-docvault"
-version = "0.4.0"
+version = "0.4.1"
 description = "A Django app for document management with versioning and changelogs"
 readme = "README.md"
 authors = [
