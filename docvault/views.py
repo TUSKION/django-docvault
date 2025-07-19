@@ -17,7 +17,7 @@ class DocumentListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['categories'] = DocumentCategory.objects.all().prefetch_related('documents')
+        context['categories'] = DocumentCategory.objects.filter(parent=None).prefetch_related('children', 'documents')
         return context
 
 
@@ -25,6 +25,9 @@ class CategoryListView(ListView):
     model = DocumentCategory
     template_name = 'docvault/category_list.html'
     context_object_name = 'categories'
+
+    def get_queryset(self):
+        return DocumentCategory.objects.filter(parent=None).prefetch_related('children', 'documents')
 
 
 class DocumentListByCategoryView(ListView):
@@ -34,13 +37,21 @@ class DocumentListByCategoryView(ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        self.category = get_object_or_404(DocumentCategory, slug=self.kwargs['category_slug'])
+        # Single query using indexed full_path field
+        self.category = DocumentCategory.get_by_path(self.kwargs['category_path'])
+        if not self.category:
+            raise Http404("Category not found")
+        
         return Document.objects.filter(category=self.category).select_related('category', 'created_by').order_by('-updated_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['category'] = self.category
-        context['categories'] = DocumentCategory.objects.all().prefetch_related('documents')
+        context['categories'] = DocumentCategory.objects.filter(parent=None).prefetch_related('children', 'documents')
+        
+        # Optimized breadcrumb generation
+        context['breadcrumbs'] = DocumentCategory.get_breadcrumbs(self.category)
+        
         return context
 
 
@@ -50,9 +61,14 @@ class DocumentDetailView(DetailView):
     context_object_name = 'document'
 
     def get_object(self):
+        # Single query for category lookup
+        category = DocumentCategory.get_by_path(self.kwargs['category_path'])
+        if not category:
+            raise Http404("Category not found")
+        
         return get_object_or_404(
             Document,
-            category__slug=self.kwargs['category_slug'],
+            category=category,
             slug=self.kwargs['document_slug']
         )
 
@@ -67,6 +83,9 @@ class DocumentDetailView(DetailView):
         # Generate table of contents
         context['table_of_contents'] = document.generate_toc()
 
+        # Optimized breadcrumb generation
+        context['breadcrumbs'] = DocumentCategory.get_breadcrumbs(document.category)
+
         return context
 
 
@@ -76,9 +95,14 @@ class VersionHistoryView(ListView):
     paginate_by = 15
 
     def get_document(self):
+        # Single query for category lookup
+        category = DocumentCategory.get_by_path(self.kwargs['category_path'])
+        if not category:
+            raise Http404("Category not found")
+        
         return get_object_or_404(
             Document,
-            category__slug=self.kwargs['category_slug'],
+            category=category,
             slug=self.kwargs['document_slug']
         )
 
@@ -89,6 +113,10 @@ class VersionHistoryView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['document'] = self.document
+        
+        # Optimized breadcrumb generation
+        context['breadcrumbs'] = DocumentCategory.get_breadcrumbs(self.document.category)
+        
         return context
 
 
@@ -97,9 +125,14 @@ class DocumentVersionView(DetailView):
     context_object_name = 'version'
 
     def get_document(self):
+        # Single query for category lookup
+        category = DocumentCategory.get_by_path(self.kwargs['category_path'])
+        if not category:
+            raise Http404("Category not found")
+        
         return get_object_or_404(
             Document,
-            category__slug=self.kwargs['category_slug'],
+            category=category,
             slug=self.kwargs['document_slug']
         )
 
@@ -140,6 +173,9 @@ class DocumentVersionView(DetailView):
         except Changelog.DoesNotExist:
             context['changelog'] = None
 
+        # Optimized breadcrumb generation
+        context['breadcrumbs'] = DocumentCategory.get_breadcrumbs(self.document.category)
+
         return context
 
 
@@ -149,9 +185,14 @@ class DocumentChangelogView(ListView):
     paginate_by = 15
 
     def get_document(self):
+        # Single query for category lookup
+        category = DocumentCategory.get_by_path(self.kwargs['category_path'])
+        if not category:
+            raise Http404("Category not found")
+        
         return get_object_or_404(
             Document,
-            category__slug=self.kwargs['category_slug'],
+            category=category,
             slug=self.kwargs['document_slug']
         )
 
@@ -162,6 +203,10 @@ class DocumentChangelogView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['document'] = self.document
+        
+        # Optimized breadcrumb generation
+        context['breadcrumbs'] = DocumentCategory.get_breadcrumbs(self.document.category)
+        
         return context
 
 
@@ -184,7 +229,7 @@ class DocumentSearchView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
-        context['categories'] = DocumentCategory.objects.all().prefetch_related('documents')
+        context['categories'] = DocumentCategory.objects.filter(parent=None).prefetch_related('children', 'documents')
         return context
 
 
@@ -198,11 +243,11 @@ class GlobalChangelogView(ListView):
         # Get MAJOR changes and any explicitly marked for global inclusion
         return Changelog.objects.filter(
             Q(importance='MAJOR') | Q(show_in_global=True)
-        ).select_related('document', 'document__category', 'version', 'created_by').order_by('-created_at')
+        ).select_related('document', 'document__category', 'created_by').order_by('-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['categories'] = DocumentCategory.objects.all()
+        context['categories'] = DocumentCategory.objects.filter(parent=None).prefetch_related('children', 'documents')
         return context
 
 
@@ -210,44 +255,39 @@ class DocumentCompareView(View):
     """Compare two versions of a document and show the differences"""
     template_name = 'docvault/document_compare.html'
 
-    def get(self, request, category_slug, document_slug):
-        # Get the document
-        document = get_object_or_404(
-            Document,
-            category__slug=category_slug,
-            slug=document_slug
-        )
-
-        # Get version numbers from query parameters
-        version1_num = request.GET.get('v1')
-        version2_num = request.GET.get('v2')
-
-        # If versions aren't specified, show version selection form
-        if not version1_num or not version2_num:
-            versions = document.versions.all().order_by('-version_number')
-            return render(request, self.template_name, {
-                'document': document,
-                'versions': versions,
-                'compare_mode': 'select'
-            })
-
-        # Get the specified versions
-        try:
-            version1 = DocumentVersion.objects.get(
-                document=document,
-                version_number=int(version1_num)
-            )
-            version2 = DocumentVersion.objects.get(
-                document=document,
-                version_number=int(version2_num)
-            )
-        except (DocumentVersion.DoesNotExist, ValueError):
-            # Handle invalid version numbers
-            return redirect(document.get_absolute_url())
-
-        return render(request, self.template_name, {
+    def get(self, request, category_path, document_slug):
+        # Single query for category lookup
+        category = DocumentCategory.get_by_path(category_path)
+        if not category:
+            raise Http404("Category not found")
+        
+        document = get_object_or_404(Document, category=category, slug=document_slug)
+        
+        # Get the two versions to compare
+        version1_id = request.GET.get('v1')
+        version2_id = request.GET.get('v2')
+        
+        if not version1_id or not version2_id:
+            # Default to comparing current version with previous version
+            versions = document.versions.all()[:2]
+            if len(versions) >= 2:
+                version1 = versions[1]  # Previous version
+                version2 = versions[0]  # Current version
+            else:
+                version1 = version2 = versions[0] if versions else None
+        else:
+            version1 = get_object_or_404(DocumentVersion, document=document, version_number=version1_id)
+            version2 = get_object_or_404(DocumentVersion, document=document, version_number=version2_id)
+        
+        # Optimized breadcrumb generation
+        breadcrumbs = DocumentCategory.get_breadcrumbs(document.category)
+        
+        context = {
             'document': document,
             'version1': version1,
             'version2': version2,
-            'compare_mode': 'diff'
-        })
+            'breadcrumbs': breadcrumbs,
+            'categories': DocumentCategory.objects.filter(parent=None).prefetch_related('children', 'documents')
+        }
+        
+        return render(request, self.template_name, context)

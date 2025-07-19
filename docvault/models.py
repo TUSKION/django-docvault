@@ -4,6 +4,7 @@ from django.urls import reverse
 from django.utils.text import slugify
 from django.utils import timezone
 from django.conf import settings
+from django.core.cache import cache
 
 # Conditionally import TinyMCE based on settings
 if getattr(settings, 'DOCVAULT_EDITOR', 'text') == 'tinymce':
@@ -13,16 +14,168 @@ else:
     ContentField = models.TextField
 
 class DocumentCategory(models.Model):
-    """Categories for documents (e.g., Legal, Financial, Personal)"""
+    """Categories for documents with materialized path for optimal performance"""
     name = models.CharField(max_length=100)
-    slug = models.SlugField(max_length=100, unique=True, help_text='URL-friendly identifier for the category')
+    slug = models.SlugField(max_length=100, help_text='URL-friendly identifier for the category')
     description = models.TextField(blank=True)
-
-    def __str__(self):
-        return self.name
-
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
+    
+    # Materialized path for efficient tree operations
+    path = models.CharField(max_length=255, db_index=True, blank=True, help_text='Materialized path for hierarchy (e.g., "1.5.12")')
+    depth = models.PositiveIntegerField(default=0, db_index=True, help_text='Depth in the tree (0 for root)')
+    
     class Meta:
         verbose_name_plural = "Document Categories"
+        unique_together = [['parent', 'slug']]  # Slug must be unique within parent
+        indexes = [
+            models.Index(fields=['path']),
+            models.Index(fields=['depth']),
+            models.Index(fields=['path', 'depth']),
+        ]
+        ordering = ['path']
+
+    def __str__(self):
+        if self.parent:
+            return f"{self.parent.name} > {self.name}"
+        return self.name
+
+    def get_ancestors(self, include_self=False):
+        """Get all ancestors in a single query"""
+        if not self.path:
+            return []
+        
+        path_parts = self.path.split('.')
+        if not include_self:
+            path_parts = path_parts[:-1]  # Exclude self
+        
+        if not path_parts:
+            return []
+        
+        return self.__class__.objects.filter(
+            id__in=path_parts
+        ).order_by('depth')
+
+    def get_descendants(self, include_self=False):
+        """Get all descendants in a single query"""
+        if not self.path:
+            return self.__class__.objects.none()
+        
+        queryset = self.__class__.objects.filter(path__startswith=self.path)
+        if not include_self:
+            queryset = queryset.exclude(pk=self.pk)
+        
+        return queryset.order_by('path')
+
+    def get_siblings(self, include_self=False):
+        """Get all siblings (same parent)"""
+        if not self.parent:
+            return self.__class__.objects.filter(parent=None)
+        
+        queryset = self.__class__.objects.filter(parent=self.parent)
+        if not include_self:
+            queryset = queryset.exclude(pk=self.pk)
+        
+        return queryset
+
+    def get_url_path(self):
+        """Generate URL path from ancestors"""
+        ancestors = self.get_ancestors(include_self=True)
+        return '/'.join([cat.slug for cat in ancestors])
+
+    def get_absolute_url(self):
+        """Returns the URL for this category"""
+        return reverse('docvault:document_list_by_category', kwargs={'category_path': self.get_url_path()})
+
+    def get_all_documents(self):
+        """Returns all documents in this category and its descendants"""
+        descendant_ids = self.get_descendants(include_self=True).values_list('id', flat=True)
+        return Document.objects.filter(category_id__in=descendant_ids)
+
+    @classmethod
+    def get_by_path(cls, category_path):
+        """Get category by URL path with optimized query"""
+        if not category_path:
+            return None
+        
+        slugs = category_path.split('/')
+        if not slugs:
+            return None
+        
+        # More efficient approach: find by matching the last slug and checking path
+        last_slug = slugs[-1]
+        candidates = cls.objects.filter(slug=last_slug)
+        
+        for candidate in candidates:
+            if candidate.get_url_path() == category_path:
+                return candidate
+        
+        return None
+
+    @classmethod
+    def get_breadcrumbs(cls, category):
+        """Get breadcrumb trail with single query"""
+        if not category:
+            return []
+        
+        return category.get_ancestors(include_self=True)
+
+    @property
+    def is_parent(self):
+        """Returns True if this category has children"""
+        return self.children.exists()
+
+    @property
+    def is_child(self):
+        """Returns True if this category has a parent"""
+        return self.parent is not None
+
+    @property
+    def is_root(self):
+        """Returns True if this is a root category"""
+        return self.parent is None
+
+    def save(self, *args, **kwargs):
+        # Set depth based on parent
+        if self.parent:
+            self.depth = self.parent.depth + 1
+        else:
+            self.depth = 0
+        
+        # Save first to get the ID
+        super().save(*args, **kwargs)
+        
+        # Update path based on parent
+        if self.parent:
+            self.path = f"{self.parent.path}.{self.id}"
+        else:
+            self.path = str(self.id)
+        
+        # Save again with updated path
+        super().save(update_fields=['path'])
+        
+        # Update all descendants' paths
+        self._update_descendant_paths()
+
+    def _update_descendant_paths(self):
+        """Update paths for all descendants when this category's path changes"""
+        descendants = self.children.all()
+        for descendant in descendants:
+            descendant.path = f"{self.path}.{descendant.id}"
+            descendant.depth = self.depth + 1
+            descendant.save(update_fields=['path', 'depth'])
+            descendant._update_descendant_paths()
+
+    def move_to(self, new_parent):
+        """Move this category to a new parent"""
+        if new_parent == self.parent:
+            return  # No change needed
+        
+        # Prevent circular references
+        if new_parent and new_parent in self.get_descendants():
+            raise ValueError("Cannot move category to its own descendant")
+        
+        self.parent = new_parent
+        self.save()
 
 class Document(models.Model):
     """Main document model with content and version tracking"""
@@ -39,7 +192,10 @@ class Document(models.Model):
 
     def get_absolute_url(self):
         """Returns the URL to access a particular document"""
-        return reverse('docvault:document_detail', args=[str(self.category.slug), str(self.slug)])
+        return reverse('docvault:document_detail', kwargs={
+            'category_path': self.category.get_url_path(),
+            'document_slug': self.slug
+        })
 
     def generate_toc(self):
         """
