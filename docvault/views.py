@@ -80,6 +80,23 @@ class DocumentListByCategoryView(CategoryContextMixin, ListView):
         context['category'] = self.category
         context['categories'] = self.get_categories_with_url_paths()
         
+        # Ensure children have document_count annotation
+        if hasattr(self.category, 'children') and self.category.children.exists():
+            # Get children with document count annotation
+            children_with_counts = DocumentCategory.objects.filter(
+                parent=self.category
+            ).annotate(
+                document_count=Count('documents')
+            ).select_related('parent')
+            
+            # Update the children with the annotated counts
+            for child in children_with_counts:
+                # Find the corresponding child in the original queryset and update it
+                for original_child in self.category.children.all():
+                    if original_child.id == child.id:
+                        original_child.document_count = child.document_count
+                        break
+        
         # Optimized breadcrumb generation (cached)
         if not hasattr(self.request, '_breadcrumbs_cache'):
             self.request._breadcrumbs_cache = {}
