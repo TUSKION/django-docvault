@@ -322,7 +322,8 @@ class Document(models.Model):
 
     def save(self, *args, **kwargs):
         # Only set created_at if this is a new object and not already set
-        if not self.pk and not self.created_at:
+        is_new = not self.pk
+        if is_new and not self.created_at:
             self.created_at = timezone.now()
 
         # Check if this is an update to an existing document
@@ -345,6 +346,15 @@ class Document(models.Model):
 
         # If it's a new document or no content changed
         super().save(*args, **kwargs)
+
+        # If this is a new document, create the first version with created_at matching the document
+        if is_new:
+            DocumentVersion.objects.create(
+                document=self,
+                content=self.content,
+                created_by=self.created_by,
+                created_at=self.created_at  # Force v1 to match document's created_at
+            )
 
 class DocumentVersion(models.Model):
     """Stores each version of a document's content"""
